@@ -29,6 +29,7 @@ class Qemu < Formula
   depends_on "vde"
   depends_on "python@3.13"
   depends_on "sdl2"
+  depends_on "curl"
 
   # 820KB floppy disk image file of FreeDOS 1.2, used to test QEMU
   resource "test-image" do
@@ -36,10 +37,10 @@ class Qemu < Formula
     sha256 "81237c7b42dc0ffc8b32a2f5734e3480a3f9a470c50c14a9c4576a2561a35807"
   end
 
-  patch :p1 do
-    url "https://raw.githubusercontent.com/vale21/homebrew-mac-mulator/refs/heads/main/Patches/qemu-icons.patch"
-    sha256 "2657dc7413eff6b627944b5cff0efe156f2ead335ce1c8f788a03accf1a9ad98"
-  end
+  # patch :p1 do
+  #   url "https://raw.githubusercontent.com/vale21/homebrew-mac-mulator/refs/heads/main/Patches/qemu-icons.patch"
+  #   sha256 "2657dc7413eff6b627944b5cff0efe156f2ead335ce1c8f788a03accf1a9ad98"
+  # end
 
   def install
     ENV["LIBTOOL"] = "glibtool"
@@ -78,6 +79,8 @@ class Qemu < Formula
 
     args << "--enable-cocoa" if OS.mac?
 
+    system "curl", "-L", "-o", "qemu-icons.patch", "https://raw.githubusercontent.com/vale21/homebrew-mac-mulator/refs/heads/main/Patches/qemu-icons.patch"
+    system "git", "apply", "qemu-icons.patch"
     system "./configure", *args
     system "make", "V=1", "install"
   end
