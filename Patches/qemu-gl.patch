@@ -1,11 +1,11 @@
-From c7686190e8f36ecb35e1a4a4472a8d31c18bda75 Mon Sep 17 00:00:00 2001
+From f2e1236eede46e62964a85f7ea8f7aef3d3948a6 Mon Sep 17 00:00:00 2001
 From: Valerio Volpi <valerio.volpi@quantabrain.org>
 Date: Tue, 18 Mar 2025 10:46:07 +0100
 Subject: [PATCH] Applying patch
 
 ---
  block/file-posix.c               |   17 +
- configure                        | 1185 +++++++++++++++++++++++++++++-
+ configure                        | 1165 +++++++++++++++++++++++++++++-
  contrib/vhost-user-gpu/virgl.c   |    8 +-
  hw/display/vhost-user-gpu.c      |    2 +-
  hw/display/virtio-gpu-virgl.c    |   29 +
@@ -19,10 +19,10 @@ Subject: [PATCH] Applying patch
  meson.build                      |  205 ++++++
  qemu-options.hx                  |   20 +
  ui/cocoa/app_controller.m        |  676 +++++++++++++++++
- ui/cocoa/main.m                  |  852 +++++++++++++++++++++
+ ui/cocoa/main.m                  |  852 ++++++++++++++++++++++
  ui/cocoa/pasteboard_type_owner.m |   75 ++
  ui/cocoa/view.m                  |  921 +++++++++++++++++++++++
- ui/console.c                     |  765 ++++++++++++++++++-
+ ui/console.c                     |  765 +++++++++++++++++++-
  ui/egl-context.c                 |    8 +-
  ui/egl-headless.c                |  138 ++--
  ui/egl-helpers.c                 |  140 ++--
@@ -34,7 +34,7 @@ Subject: [PATCH] Applying patch
  ui/sdl2.c                        |   37 +-
  ui/shader.c                      |   14 +-
  ui/spice-display.c               |   57 +-
- 30 files changed, 5334 insertions(+), 416 deletions(-)
+ 30 files changed, 5314 insertions(+), 416 deletions(-)
  create mode 100644 include/ui/cocoa.h
  create mode 100644 ui/cocoa/app_controller.m
  create mode 100644 ui/cocoa/main.m
@@ -85,7 +85,7 @@ index 56d1972d15..dbca7a52c0 100644
      fcntl_flags |= O_NOATIME;
  #endif
 diff --git a/configure b/configure
-index 02f1dd2311..8d6536c7df 100755
+index 02f1dd2311..d50c35c4b4 100755
 --- a/configure
 +++ b/configure
 @@ -195,6 +195,107 @@ EXTRA_LDFLAGS=""
@@ -196,7 +196,7 @@ index 02f1dd2311..8d6536c7df 100755
  for opt do
    optarg=$(expr "x$opt" : 'x[^=]*=\(.*\)')
    case "$opt" in
-@@ -1699,7 +1800,876 @@ if test "$host_os" = "linux" && test -n "$linux_arch"; then
+@@ -1699,7 +1800,856 @@ if test "$host_os" = "linux" && test -n "$linux_arch"; then
    symlink "$source_path/linux-headers/asm-$linux_arch" linux-headers/asm
  fi
  
@@ -242,26 +242,6 @@ index 02f1dd2311..8d6536c7df 100755
 +        fi
 +    else
 +        gio=yes
-+    fi
-+fi
-+
-+# Silence clang warnings triggered by glib < 2.57.2
-+cat > $TMPC << EOF
-+#include <glib.h>
-+typedef struct Foo {
-+    int i;
-+} Foo;
-+static void foo_free(Foo *f)
-+{
-+    g_free(f);
-+}
-+G_DEFINE_AUTOPTR_CLEANUP_FUNC(Foo, foo_free);
-+int main(void) { return 0; }
-+EOF
-+if ! compile_prog "$glib_cflags -Werror" "$glib_libs" ; then
-+    if cc_has_warning_flag "-Wno-unused-function"; then
-+        glib_cflags="$glib_cflags -Wno-unused-function"
-+        CONFIGURE_CFLAGS="$CONFIGURE_CFLAGS -Wno-unused-function"
 +    fi
 +fi
 +
@@ -1074,7 +1054,7 @@ index 02f1dd2311..8d6536c7df 100755
  
  # Mac OS X ships with a broken assembler
  if have_target i386-softmmu x86_64-softmmu && \
-@@ -1763,6 +2733,219 @@ echo "SUBDIRS=$subdirs" >> $config_host_mak
+@@ -1763,6 +2713,219 @@ echo "SUBDIRS=$subdirs" >> $config_host_mak
  if test "$rust" != disabled; then
    echo "RUST_TARGET_TRIPLE=$rust_target_triple" >> $config_host_mak
  fi
