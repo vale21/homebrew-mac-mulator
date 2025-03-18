@@ -1,4 +1,4 @@
-From ced61c6d97b3026fd90c552e77378262db3a07fb Mon Sep 17 00:00:00 2001
+From cc3b77d044c654cc1967d7e93cbe607788ee8530 Mon Sep 17 00:00:00 2001
 From: Valerio Volpi <valerio.volpi@quantabrain.org>
 Date: Tue, 18 Mar 2025 10:46:07 +0100
 Subject: [PATCH] Applying patch
@@ -20,7 +20,7 @@ Subject: [PATCH] Applying patch
  ui/cocoa/main.m                  | 852 ++++++++++++++++++++++++++++
  ui/cocoa/pasteboard_type_owner.m |  75 +++
  ui/cocoa/view.m                  | 921 +++++++++++++++++++++++++++++++
- ui/console.c                     | 765 ++++++++++++++++++++++++-
+ ui/console.c                     | 775 +++++++++++++++++++++++++-
  ui/egl-context.c                 |   8 +-
  ui/egl-headless.c                | 138 +++--
  ui/egl-helpers.c                 | 140 ++---
@@ -31,7 +31,7 @@ Subject: [PATCH] Applying patch
  ui/sdl2.c                        |  37 +-
  ui/shader.c                      |  14 +-
  ui/spice-display.c               |  57 +-
- 27 files changed, 3926 insertions(+), 407 deletions(-)
+ 27 files changed, 3941 insertions(+), 402 deletions(-)
  create mode 100644 include/ui/cocoa.h
  create mode 100644 ui/cocoa/app_controller.m
  create mode 100644 ui/cocoa/main.m
@@ -3185,7 +3185,7 @@ index 0000000000..8beb963cbd
 +}
 +@end
 diff --git a/ui/console.c b/ui/console.c
-index 6456e8dd90..6b36ea4613 100644
+index 6456e8dd90..778b34602f 100644
 --- a/ui/console.c
 +++ b/ui/console.c
 @@ -46,6 +46,33 @@ OBJECT_DEFINE_ABSTRACT_TYPE(QemuConsole, qemu_console, QEMU_CONSOLE, OBJECT)
@@ -3876,27 +3876,27 @@ index 6456e8dd90..6b36ea4613 100644
  }
  
  static const int qcode_to_keysym[Q_KEY_CODE__MAX] = {
-@@ -549,26 +1214,30 @@ void qemu_free_displaysurface(DisplaySurface *surface)
+@@ -549,18 +1214,23 @@ void qemu_free_displaysurface(DisplaySurface *surface)
      g_free(surface);
  }
  
 -bool console_has_gl(QemuConsole *con)
 +bool console_has_gl(void)
++{
++    return display_gl_ops != NULL;
++}
++
++void console_set_displayglcontext(QemuConsole *con, void *dg)
  {
 -    return con->gl != NULL;
-+    return display_gl_ops != NULL;
++    con->dg = dg;
  }
  
 -static bool displaychangelistener_has_dmabuf(DisplayChangeListener *dcl)
-+void console_set_displayglcontext(QemuConsole *con, void *dg)
++static bool console_has_dmabuf(QemuConsole *con)
  {
 -    if (dcl->ops->dpy_has_dmabuf) {
 -        return dcl->ops->dpy_has_dmabuf(dcl);
-+    con->dg = dg;
-+}
-+
-+static bool console_has_dmabuf(QemuConsole *con)
-+{
 +    if (display_gl_ops->dpy_has_dmabuf) {
 +        return display_gl_ops->dpy_has_dmabuf(con->dg);
      }
@@ -3906,33 +3906,40 @@ index 6456e8dd90..6b36ea4613 100644
          return true;
      }
  
-     return false;
+@@ -596,6 +1266,32 @@ static bool console_compatible_with(QemuConsole *con,
+ 
+     return true;
  }
- 
--static bool console_compatible_with(QemuConsole *con,
--                                    DisplayChangeListener *dcl, Error **errp)
-+static bool dpy_compatible_with(QemuConsole *con, Error **errp)
- {
-     int flags;
- 
-@@ -582,14 +1251,13 @@ static bool console_compatible_with(QemuConsole *con,
-     }
- 
-     if (flags & GRAPHIC_FLAGS_GL &&
--        !console_has_gl(con)) {
++{
++    int flags;
++
++    flags = con->hw_ops->get_flags ? con->hw_ops->get_flags(con->hw) : 0;
++
++    if (console_has_gl(con) &&
++        !con->gl->ops->dpy_gl_ctx_is_compatible_dcl(con->gl, dcl)) {
++        error_setg(errp, "Display %s is incompatible with the GL context",
++                   dcl->ops->dpy_name);
++        return false;
++    }
++
++    if (flags & GRAPHIC_FLAGS_GL &&
 +        !console_has_gl()) {
-         error_setg(errp, "The console requires a GL context.");
-         return false;
--
-     }
- 
-     if (flags & GRAPHIC_FLAGS_DMABUF &&
--        !displaychangelistener_has_dmabuf(dcl)) {
++        error_setg(errp, "The console requires a GL context.");
++        return false;
++    }
++
++    if (flags & GRAPHIC_FLAGS_DMABUF &&
 +        !console_has_dmabuf(con)) {
-         error_setg(errp, "The console requires display DMABUF support.");
-         return false;
-     }
-@@ -673,8 +1341,7 @@ void qemu_console_set_display_gl_ctx(QemuConsole *con, DisplayGLCtx *gl)
++        error_setg(errp, "The console requires display DMABUF support.");
++        return false;
++    }
++
++    return true;
++}
+ 
+ void console_handle_touch_event(QemuConsole *con,
+                                 struct touch_slot touch_slots[INPUT_EVENT_SLOTS_MAX],
+@@ -673,8 +1369,7 @@ void qemu_console_set_display_gl_ctx(QemuConsole *con, DisplayGLCtx *gl)
      con->gl = gl;
  }
  
@@ -3942,7 +3949,7 @@ index 6456e8dd90..6b36ea4613 100644
  {
      if (con && con->cursor && dcl->ops->dpy_cursor_define) {
          dcl->ops->dpy_cursor_define(dcl, con->cursor);
-@@ -682,12 +1349,31 @@ dcl_set_graphic_cursor(DisplayChangeListener *dcl, QemuGraphicConsole *con)
+@@ -682,6 +1377,17 @@ dcl_set_graphic_cursor(DisplayChangeListener *dcl, QemuGraphicConsole *con)
      if (con && dcl->ops->dpy_mouse_set) {
          dcl->ops->dpy_mouse_set(dcl, con->cursor_x, con->cursor_y, con->cursor_on);
      }
@@ -3960,21 +3967,7 @@ index 6456e8dd90..6b36ea4613 100644
  }
  
  void register_displaychangelistener(DisplayChangeListener *dcl)
- {
-     assert(!dcl->ds);
- 
-+    if (dcl->con) {
-+        dpy_compatible_with(dcl->con, &error_fatal);
-+    } else {
-+        QTAILQ_FOREACH(con, &consoles, next) {
-+            dpy_compatible_with(con, &error_fatal);
-+        }
-+    }
-+
-     trace_displaychangelistener_register(dcl, dcl->ops->dpy_name);
-     dcl->ds = get_alloc_displaystate();
-     QLIST_INSERT_HEAD(&dcl->ds->listeners, dcl, next);
-@@ -982,20 +1668,20 @@ void dpy_cursor_define(QemuConsole *c, QEMUCursor *cursor)
+@@ -982,20 +1688,20 @@ void dpy_cursor_define(QemuConsole *c, QEMUCursor *cursor)
  QEMUGLContext dpy_gl_ctx_create(QemuConsole *con,
                                  struct QEMUGLParams *qparams)
  {
@@ -4001,7 +3994,7 @@ index 6456e8dd90..6b36ea4613 100644
  }
  
  void dpy_gl_scanout_disable(QemuConsole *con)
-@@ -1014,13 +1700,13 @@ void dpy_gl_scanout_disable(QemuConsole *con)
+@@ -1014,13 +1720,13 @@ void dpy_gl_scanout_disable(QemuConsole *con)
              dcl->ops->dpy_gl_scanout_disable(dcl);
          }
      }
@@ -4018,7 +4011,7 @@ index 6456e8dd90..6b36ea4613 100644
                              uint32_t x, uint32_t y,
                              uint32_t width, uint32_t height,
                              void *d3d_tex2d)
-@@ -1045,6 +1731,9 @@ void dpy_gl_scanout_texture(QemuConsole *con,
+@@ -1045,6 +1751,9 @@ void dpy_gl_scanout_texture(QemuConsole *con,
                                               d3d_tex2d);
          }
      }
@@ -4028,7 +4021,7 @@ index 6456e8dd90..6b36ea4613 100644
  }
  
  void dpy_gl_scanout_dmabuf(QemuConsole *con,
-@@ -1063,6 +1752,8 @@ void dpy_gl_scanout_dmabuf(QemuConsole *con,
+@@ -1063,6 +1772,8 @@ void dpy_gl_scanout_dmabuf(QemuConsole *con,
              dcl->ops->dpy_gl_scanout_dmabuf(dcl, dmabuf);
          }
      }
@@ -4037,7 +4030,7 @@ index 6456e8dd90..6b36ea4613 100644
  }
  
  void dpy_gl_cursor_dmabuf(QemuConsole *con, QemuDmaBuf *dmabuf,
-@@ -1079,6 +1770,12 @@ void dpy_gl_cursor_dmabuf(QemuConsole *con, QemuDmaBuf *dmabuf,
+@@ -1079,6 +1790,12 @@ void dpy_gl_cursor_dmabuf(QemuConsole *con, QemuDmaBuf *dmabuf,
              dcl->ops->dpy_gl_cursor_dmabuf(dcl, dmabuf,
                                             have_hot, hot_x, hot_y);
          }
@@ -4050,7 +4043,7 @@ index 6456e8dd90..6b36ea4613 100644
      }
  }
  
-@@ -1095,6 +1792,11 @@ void dpy_gl_cursor_position(QemuConsole *con,
+@@ -1095,6 +1812,11 @@ void dpy_gl_cursor_position(QemuConsole *con,
          if (dcl->ops->dpy_gl_cursor_position) {
              dcl->ops->dpy_gl_cursor_position(dcl, pos_x, pos_y);
          }
@@ -4062,7 +4055,7 @@ index 6456e8dd90..6b36ea4613 100644
      }
  }
  
-@@ -1111,6 +1813,11 @@ void dpy_gl_release_dmabuf(QemuConsole *con,
+@@ -1111,6 +1833,11 @@ void dpy_gl_release_dmabuf(QemuConsole *con,
          if (dcl->ops->dpy_gl_release_dmabuf) {
              dcl->ops->dpy_gl_release_dmabuf(dcl, dmabuf);
          }
@@ -4074,7 +4067,7 @@ index 6456e8dd90..6b36ea4613 100644
      }
  }
  
-@@ -1132,6 +1839,16 @@ void dpy_gl_update(QemuConsole *con,
+@@ -1132,6 +1859,16 @@ void dpy_gl_update(QemuConsole *con,
          }
      }
      graphic_hw_gl_block(con, false);
@@ -4091,7 +4084,7 @@ index 6456e8dd90..6b36ea4613 100644
  }
  
  /***********************************************************/
-@@ -1226,7 +1943,7 @@ void graphic_console_close(QemuConsole *con)
+@@ -1226,7 +1963,7 @@ void graphic_console_close(QemuConsole *con)
      object_property_set_link(OBJECT(con), "device", NULL, &error_abort);
      graphic_console_set_hwops(con, &unused_ops, NULL);
  
