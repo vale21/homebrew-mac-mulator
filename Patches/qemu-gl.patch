@@ -1,4 +1,4 @@
-From 544c48ebf72779a253684f84ed8b72789ce43d10 Mon Sep 17 00:00:00 2001
+From a4909e80b0cd06e71f345683a81d4ae8c269799e Mon Sep 17 00:00:00 2001
 From: Valerio Volpi <valerio.volpi@quantabrain.org>
 Date: Tue, 18 Mar 2025 10:46:07 +0100
 Subject: [PATCH] Applying patch
@@ -15,7 +15,6 @@ Subject: [PATCH] Applying patch
  include/ui/egl-helpers.h         |   4 +-
  include/ui/gtk.h                 |  54 +-
  include/ui/sdl2.h                |  21 +-
- meson.build                      | 205 +++++++
  qemu-options.hx                  |  20 +
  ui/cocoa/app_controller.m        | 676 +++++++++++++++++++++++
  ui/cocoa/main.m                  | 852 ++++++++++++++++++++++++++++
@@ -33,7 +32,7 @@ Subject: [PATCH] Applying patch
  ui/sdl2.c                        |  37 +-
  ui/shader.c                      |  14 +-
  ui/spice-display.c               |  57 +-
- 29 files changed, 4150 insertions(+), 415 deletions(-)
+ 28 files changed, 3945 insertions(+), 415 deletions(-)
  create mode 100644 include/ui/cocoa.h
  create mode 100644 ui/cocoa/app_controller.m
  create mode 100644 ui/cocoa/main.m
@@ -600,229 +599,6 @@ index dbe6e3d973..18f1e0d5a7 100644
                               uint32_t x, uint32_t y,
                               uint32_t w, uint32_t h,
                               void *d3d_tex2d);
-diff --git a/meson.build b/meson.build
-index 7f75256acf..5745e888ec 100644
---- a/meson.build
-+++ b/meson.build
-@@ -302,6 +302,186 @@ elif cpu == 'riscv64'
-   kvm_targets = ['riscv64-softmmu']
- elif cpu == 'loongarch64'
-   kvm_targets = ['loongarch64-softmmu']
-+  
-+tcg_arch = config_host['ARCH']
-+if not get_option('tcg').disabled()
-+  if cpu not in supported_cpus
-+    if get_option('tcg_interpreter')
-+      warning('Unsupported CPU @0@, will use TCG with TCI (slow)'.format(cpu))
-+    else
-+      error('Unsupported CPU @0@, try --enable-tcg-interpreter'.format(cpu))
-+    endif
-+  elif get_option('tcg_interpreter')
-+    warning('Use of the TCG interpreter is not recommended on this host')
-+    warning('architecture. There is a native TCG execution backend available')
-+    warning('which provides substantially better performance and reliability.')
-+    warning('It is strongly recommended to remove the --enable-tcg-interpreter')
-+    warning('configuration option on this architecture to use the native')
-+    warning('backend.')
-+  endif
-+  if get_option('tcg_interpreter')
-+    tcg_arch = 'tci'
-+  elif config_host['ARCH'] == 'sparc64'
-+    tcg_arch = 'sparc'
-+  elif config_host['ARCH'] in ['x86_64', 'x32']
-+    tcg_arch = 'i386'
-+  elif config_host['ARCH'] == 'ppc64'
-+    tcg_arch = 'ppc'
-+  endif
-+  add_project_arguments('-iquote', meson.current_source_dir() / 'tcg' / tcg_arch,
-+                        language: ['c', 'cpp', 'objc'])
-+
-+  accelerators += 'CONFIG_TCG'
-+  config_host += { 'CONFIG_TCG': 'y' }
-+endif
-+
-+if 'CONFIG_KVM' not in accelerators and get_option('kvm').enabled()
-+  error('KVM not available on this platform')
-+endif
-+if 'CONFIG_HVF' not in accelerators and get_option('hvf').enabled()
-+  error('HVF not available on this platform')
-+endif
-+if 'CONFIG_NVMM' not in accelerators and get_option('nvmm').enabled()
-+  error('NVMM not available on this platform')
-+endif
-+if 'CONFIG_WHPX' not in accelerators and get_option('whpx').enabled()
-+  error('WHPX not available on this platform')
-+endif
-+if not have_xen_pci_passthrough and get_option('xen_pci_passthrough').enabled()
-+  if 'CONFIG_XEN' in accelerators
-+    error('Xen PCI passthrough not available on this platform')
-+  else
-+    error('Xen PCI passthrough requested but Xen not enabled')
-+  endif
-+endif
-+
-+################
-+# Dependencies #
-+################
-+
-+# The path to glib.h is added to all compilation commands.  This was
-+# grandfathered in from the QEMU Makefiles.
-+add_project_arguments(config_host['GLIB_CFLAGS'].split(),
-+                      native: false, language: ['c', 'cpp', 'objc'])
-+glib = declare_dependency(compile_args: config_host['GLIB_CFLAGS'].split(),
-+                          link_args: config_host['GLIB_LIBS'].split())
-+# override glib dep with the configure results (for subprojects)
-+meson.override_dependency('glib-2.0', glib)
-+
-+gio = not_found
-+if 'CONFIG_GIO' in config_host
-+  gio = declare_dependency(compile_args: config_host['GIO_CFLAGS'].split(),
-+                           link_args: config_host['GIO_LIBS'].split())
-+endif
-+lttng = not_found
-+if 'ust' in get_option('trace_backends')
-+  lttng = dependency('lttng-ust', required: true, method: 'pkg-config',
-+                     kwargs: static_kwargs)
-+endif
-+pixman = not_found
-+if have_system or have_tools
-+  pixman = dependency('pixman-1', required: have_system, version:'>=0.21.8',
-+                      method: 'pkg-config', kwargs: static_kwargs)
-+endif
-+zlib = dependency('zlib', required: true, kwargs: static_kwargs)
-+
-+libaio = not_found
-+if not get_option('linux_aio').auto() or have_block
-+  libaio = cc.find_library('aio', has_headers: ['libaio.h'],
-+                           required: get_option('linux_aio'),
-+                           kwargs: static_kwargs)
-+endif
-+linux_io_uring = not_found
-+if not get_option('linux_io_uring').auto() or have_block
-+  linux_io_uring = dependency('liburing', required: get_option('linux_io_uring'),
-+                              method: 'pkg-config', kwargs: static_kwargs)
-+endif
-+libxml2 = not_found
-+if not get_option('libxml2').auto() or have_block
-+  libxml2 = dependency('libxml-2.0', required: get_option('libxml2'),
-+                       method: 'pkg-config', kwargs: static_kwargs)
-+endif
-+libnfs = not_found
-+if not get_option('libnfs').auto() or have_block
-+  libnfs = dependency('libnfs', version: '>=1.9.3',
-+                      required: get_option('libnfs'),
-+                      method: 'pkg-config', kwargs: static_kwargs)
-+endif
-+
-+libattr_test = '''
-+  #include <stddef.h>
-+  #include <sys/types.h>
-+  #ifdef CONFIG_LIBATTR
-+  #include <attr/xattr.h>
-+  #else
-+  #include <sys/xattr.h>
-+  #endif
-+  int main(void) { getxattr(NULL, NULL, NULL, 0); setxattr(NULL, NULL, NULL, 0, 0); return 0; }'''
-+
-+libattr = not_found
-+have_old_libattr = false
-+if not get_option('attr').disabled()
-+  if cc.links(libattr_test)
-+    libattr = declare_dependency()
-+  else
-+    libattr = cc.find_library('attr', has_headers: ['attr/xattr.h'],
-+                              required: get_option('attr'),
-+                              kwargs: static_kwargs)
-+    if libattr.found() and not \
-+      cc.links(libattr_test, dependencies: libattr, args: '-DCONFIG_LIBATTR')
-+      libattr = not_found
-+      if get_option('attr').enabled()
-+        error('could not link libattr')
-+      else
-+        warning('could not link libattr, disabling')
-+      endif
-+    else
-+      have_old_libattr = libattr.found()
-+    endif
-+  endif
-+endif
-+
-+cocoa = dependency('appleframeworks', modules: ['Cocoa', 'CoreVideo'],
-+                   required: get_option('cocoa'))
-+if cocoa.found() and get_option('sdl').enabled()
-+  error('Cocoa and SDL cannot be enabled at the same time')
-+endif
-+if cocoa.found() and get_option('gtk').enabled()
-+  error('Cocoa and GTK+ cannot be enabled at the same time')
-+endif
-+
-+vmnet = dependency('appleframeworks', modules: 'vmnet', required: get_option('vmnet'))
-+
-+seccomp = not_found
-+if not get_option('seccomp').auto() or have_system or have_tools
-+  seccomp = dependency('libseccomp', version: '>=2.3.0',
-+                       required: get_option('seccomp'),
-+                       method: 'pkg-config', kwargs: static_kwargs)
-+endif
-+
-+libcap_ng = not_found
-+if not get_option('cap_ng').auto() or have_system or have_tools
-+  libcap_ng = cc.find_library('cap-ng', has_headers: ['cap-ng.h'],
-+                              required: get_option('cap_ng'),
-+                              kwargs: static_kwargs)
-+endif
-+if libcap_ng.found() and not cc.links('''
-+   #include <cap-ng.h>
-+   int main(void)
-+   {
-+     capng_capability_to_name(CAPNG_EFFECTIVE);
-+     return 0;
-+   }''', dependencies: libcap_ng)
-+  libcap_ng = not_found
-+  if get_option('cap_ng').enabled()
-+    error('could not link libcap-ng')
-+  else
-+    warning('could not link libcap-ng, disabling')
-+  endif
-+endif
-+
-+if get_option('xkbcommon').auto() and not have_system and not have_tools
-+  xkbcommon = not_found
- else
-   kvm_targets = []
- endif
-@@ -4759,6 +4939,31 @@ if vnc.found()
-   summary_info += {'VNC SASL support':  sasl}
-   summary_info += {'VNC JPEG support':  jpeg}
- endif
-+if targetos not in ['darwin', 'haiku', 'windows']
-+  summary_info += {'OSS support':     oss}
-+elif targetos == 'darwin'
-+  summary_info += {'CoreAudio support': coreaudio}
-+elif targetos == 'windows'
-+  summary_info += {'DirectSound support': dsound}
-+endif
-+if targetos == 'linux'
-+  summary_info += {'ALSA support':    alsa}
-+  summary_info += {'PulseAudio support': pulse}
-+endif
-+summary_info += {'JACK support':      jack}
-+summary_info += {'brlapi support':    brlapi}
-+summary_info += {'vde support':       vde}
-+summary_info += {'vmnet.framework support': vmnet}
-+summary_info += {'netmap support':    have_netmap}
-+summary_info += {'l2tpv3 support':    have_l2tpv3}
-+summary_info += {'Linux AIO support': libaio}
-+summary_info += {'Linux io_uring support': linux_io_uring}
-+summary_info += {'ATTR/XATTR support': libattr}
-+summary_info += {'RDMA support':      config_host.has_key('CONFIG_RDMA')}
-+summary_info += {'PVRDMA support':    config_host.has_key('CONFIG_PVRDMA')}
-+summary_info += {'fdt support':       fdt_opt == 'disabled' ? false : fdt_opt}
-+summary_info += {'libcap-ng support': libcap_ng}
-+summary_info += {'bpf support':       libbpf}
- summary_info += {'spice protocol support': spice_protocol}
- if spice_protocol.found()
-   summary_info += {'  spice server support': spice}
 diff --git a/qemu-options.hx b/qemu-options.hx
 index dc694a99a3..7c68d1b0e0 100644
 --- a/qemu-options.hx
