@@ -608,52 +608,6 @@ index 310cc4fd19..b142a1ff52 100644
      '*remote': 'SocketAddress' } }
  
 +##
-+# @NetdevVmnetHostOptions:
-+#
-+# vmnet (host mode) network backend.
-+#
-+# Allows the vmnet interface to communicate with other vmnet
-+# interfaces that are in host mode and also with the native host.
-+#
-+# @start-address: The starting IPv4 address to use for the interface.
-+#                 Must be in the private IP range (RFC 1918). Must be
-+#                 specified along with @end-address and @subnet-mask.
-+#                 This address is used as the gateway address. The
-+#                 subsequent address up to and including end-address are
-+#                 placed in the DHCP pool.
-+#
-+# @end-address: The DHCP IPv4 range end address to use for the
-+#               interface. Must be in the private IP range (RFC 1918).
-+#               Must be specified along with @start-address and
-+#               @subnet-mask.
-+#
-+# @subnet-mask: The IPv4 subnet mask to use on the interface. Must
-+#               be specified along with @start-address and @subnet-mask.
-+#
-+# @isolated: Enable isolation for this interface. Interface isolation
-+#            ensures that vmnet interface is not able to communicate
-+#            with any other vmnet interfaces. Only communication with
-+#            host is allowed.
-+#
-+# @net-uuid: The identifier (UUID) to uniquely identify the isolated
-+#            network vmnet interface should be added to. If
-+#            set, no DHCP service is provided for this interface and
-+#            network communication is allowed only with other interfaces
-+#            added to this network identified by the UUID.
-+#
-+# Since: 7.0
-+##
-+{ 'struct': 'NetdevVmnetHostOptions',
-+  'data': {
-+    '*start-address':   'str',
-+    '*end-address':     'str',
-+    '*subnet-mask': 'str',
-+    '*isolated':    'bool',
-+    '*net-uuid':    'str'
-+  },
-+  'if': 'CONFIG_VMNET' }
-+
-+##
 +# @NetdevVmnetSharedOptions:
 +#
 +# vmnet (shared mode) network backend.
