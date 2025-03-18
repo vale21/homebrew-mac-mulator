@@ -1,4 +1,4 @@
-From 5e94016f4382ca1ee5d3ebfec2450fe1ae54d7c8 Mon Sep 17 00:00:00 2001
+From 31c5a243120424c38e50967cbbe7be0ea4056608 Mon Sep 17 00:00:00 2001
 From: Valerio Volpi <valerio.volpi@quantabrain.org>
 Date: Tue, 18 Mar 2025 10:46:07 +0100
 Subject: [PATCH] Applying patch
@@ -6,11 +6,10 @@ Subject: [PATCH] Applying patch
 ---
  block/file-posix.c               |  17 +
  contrib/vhost-user-gpu/virgl.c   |   8 +-
- hw/display/vhost-user-gpu.c      |   2 +-
  hw/display/virtio-gpu-virgl.c    |  29 +
- hw/display/virtio-gpu.c          |  21 +-
+ hw/display/virtio-gpu.c          |  17 +
  include/ui/cocoa.h               | 127 +++++
- include/ui/console.h             |  43 +-
+ include/ui/console.h             |  33 +-
  include/ui/egl-context.h         |   8 +-
  include/ui/egl-helpers.h         |   4 +-
  include/ui/gtk.h                 |  54 +-
@@ -30,7 +29,7 @@ Subject: [PATCH] Applying patch
  ui/sdl2.c                        |  37 +-
  ui/shader.c                      |  14 +-
  ui/spice-display.c               |  57 +-
- 26 files changed, 3185 insertions(+), 383 deletions(-)
+ 25 files changed, 3178 insertions(+), 374 deletions(-)
  create mode 100644 include/ui/cocoa.h
  create mode 100644 ui/cocoa/app_controller.m
  create mode 100644 ui/cocoa/main.m
@@ -106,19 +105,6 @@ index 51da0e3667..18061d0e4c 100644
              g_critical("%s: illegal resource specified %d\n",
                         __func__, ss.resource_id);
              cmd->error = VIRTIO_GPU_RESP_ERR_INVALID_RESOURCE_ID;
-diff --git a/hw/display/vhost-user-gpu.c b/hw/display/vhost-user-gpu.c
-index 2aed6243f6..23e42185b0 100644
---- a/hw/display/vhost-user-gpu.c
-+++ b/hw/display/vhost-user-gpu.c
-@@ -303,7 +303,7 @@ vhost_user_gpu_handle_display(VhostUserGPU *g, VhostUserGpuMsg *msg)
-         }
- 
-         con = g->parent_obj.scanout[m->scanout_id].con;
--        if (!console_has_gl(con)) {
-+        if (!console_has_gl()) {
-             error_report("console doesn't support GL!");
-             vhost_user_gpu_unblock(g);
-             break;
 diff --git a/hw/display/virtio-gpu-virgl.c b/hw/display/virtio-gpu-virgl.c
 index 145a0b3879..63efc2540d 100644
 --- a/hw/display/virtio-gpu-virgl.c
@@ -160,7 +146,7 @@ index 145a0b3879..63efc2540d 100644
                                    struct virtio_gpu_ctrl_command *cmd)
  {
 diff --git a/hw/display/virtio-gpu.c b/hw/display/virtio-gpu.c
-index 11a7a85750..1d7f69bd64 100644
+index 11a7a85750..5c323c8a8c 100644
 --- a/hw/display/virtio-gpu.c
 +++ b/hw/display/virtio-gpu.c
 @@ -205,6 +205,23 @@ void virtio_gpu_get_display_info(VirtIOGPU *g,
@@ -187,24 +173,6 @@ index 11a7a85750..1d7f69bd64 100644
  void virtio_gpu_get_edid(VirtIOGPU *g,
                           struct virtio_gpu_ctrl_command *cmd)
  {
-@@ -635,7 +652,7 @@ static bool virtio_gpu_do_set_scanout(VirtIOGPU *g,
-     g->parent_obj.enable = 1;
- 
-     if (res->blob) {
--        if (console_has_gl(scanout->con)) {
-+        if (console_has_gl()) {
-             if (!virtio_gpu_update_dmabuf(g, scanout_id, res, fb, r)) {
-                 virtio_gpu_update_scanout(g, scanout_id, res, fb, r);
-             } else {
-@@ -651,7 +668,7 @@ static bool virtio_gpu_do_set_scanout(VirtIOGPU *g,
-     }
- 
-     /* create a surface for this scanout */
--    if ((res->blob && !console_has_gl(scanout->con)) ||
-+    if ((res->blob && !console_has_gl()) ||
-         !scanout->ds ||
-         surface_data(scanout->ds) != data + fb->offset ||
-         scanout->width != r->width ||
 diff --git a/include/ui/cocoa.h b/include/ui/cocoa.h
 new file mode 100644
 index 0000000000..12ccc97e6f
@@ -339,7 +307,7 @@ index 0000000000..12ccc97e6f
 +
 +#endif
 diff --git a/include/ui/console.h b/include/ui/console.h
-index 46b3128185..78bc9b9738 100644
+index 46b3128185..2afe805ea1 100644
 --- a/include/ui/console.h
 +++ b/include/ui/console.h
 @@ -300,9 +300,39 @@ struct DisplayGLCtx {
@@ -382,32 +350,15 @@ index 46b3128185..78bc9b9738 100644
  void register_displaychangelistener(DisplayChangeListener *dcl);
  void update_displaychangelistener(DisplayChangeListener *dcl,
                                    uint64_t interval);
-@@ -325,11 +355,9 @@ bool dpy_gfx_check_format(QemuConsole *con,
-                           pixman_format_code_t format);
- 
- void dpy_gl_scanout_disable(QemuConsole *con);
--void dpy_gl_scanout_texture(QemuConsole *con,
--                            uint32_t backing_id, bool backing_y_0_top,
--                            uint32_t backing_width, uint32_t backing_height,
--                            uint32_t x, uint32_t y, uint32_t w, uint32_t h,
--                            void *d3d_tex2d);
-+void dpy_gl_scanout_texture(QemuConsole *con, uint32_t backing_id,
-+                            DisplayGLTextureBorrower backing_borrow,
-+                            uint32_t x, uint32_t y, uint32_t w, uint32_t h);
- void dpy_gl_scanout_dmabuf(QemuConsole *con,
-                            QemuDmaBuf *dmabuf);
- void dpy_gl_cursor_dmabuf(QemuConsole *con, QemuDmaBuf *dmabuf,
-@@ -346,7 +374,8 @@ QEMUGLContext dpy_gl_ctx_create(QemuConsole *con,
+@@ -346,6 +376,7 @@ QEMUGLContext dpy_gl_ctx_create(QemuConsole *con,
  void dpy_gl_ctx_destroy(QemuConsole *con, QEMUGLContext ctx);
  int dpy_gl_ctx_make_current(QemuConsole *con, QEMUGLContext ctx);
  
--bool console_has_gl(QemuConsole *con);
 +void console_set_displayglcontext(QemuConsole *con, void *dg);
-+bool console_has_gl(void);
+ bool console_has_gl(QemuConsole *con);
  
  typedef uint32_t console_ch_t;
- 
-@@ -369,7 +398,7 @@ typedef struct GraphicHwOps {
+@@ -369,7 +400,7 @@ typedef struct GraphicHwOps {
      void (*gfx_update)(void *opaque);
      bool gfx_update_async; /* if true, calls graphic_hw_update_done() */
      void (*text_update)(void *opaque, console_ch_t *text);
