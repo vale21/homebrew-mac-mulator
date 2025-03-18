@@ -1,4 +1,4 @@
-From e2aabac488d11bca008935694668d4cfe286f4b8 Mon Sep 17 00:00:00 2001
+From 9772bdd9f19754d07569a799da468c9d38365b91 Mon Sep 17 00:00:00 2001
 From: Valerio Volpi <valerio.volpi@quantabrain.org>
 Date: Tue, 18 Mar 2025 10:46:07 +0100
 Subject: [PATCH] Applying patch
@@ -12,7 +12,6 @@ Subject: [PATCH] Applying patch
  include/ui/console.h             |  33 +-
  include/ui/egl-helpers.h         |   4 +-
  include/ui/gtk.h                 |  54 +-
- include/ui/sdl2.h                |  21 +-
  qemu-options.hx                  |  20 +
  ui/cocoa/app_controller.m        | 676 +++++++++++++++++++++++
  ui/cocoa/main.m                  | 852 ++++++++++++++++++++++++++++
@@ -22,11 +21,10 @@ Subject: [PATCH] Applying patch
  ui/gtk-egl.c                     |  85 +--
  ui/gtk-gl-area.c                 |  88 ++-
  ui/gtk.c                         |  82 +--
- ui/sdl2-gl.c                     |  41 +-
  ui/sdl2.c                        |  37 +-
  ui/shader.c                      |  14 +-
  ui/spice-display.c               |  57 +-
- 22 files changed, 3104 insertions(+), 294 deletions(-)
+ 20 files changed, 3069 insertions(+), 267 deletions(-)
  create mode 100644 include/ui/cocoa.h
  create mode 100644 ui/cocoa/app_controller.m
  create mode 100644 ui/cocoa/main.m
@@ -479,54 +477,6 @@ index aa3d637029..09f18e3fc5 100644
  
  /* gtk-clipboard.c */
  void gd_clipboard_init(GtkDisplayState *gd);
-diff --git a/include/ui/sdl2.h b/include/ui/sdl2.h
-index dbe6e3d973..18f1e0d5a7 100644
---- a/include/ui/sdl2.h
-+++ b/include/ui/sdl2.h
-@@ -22,7 +22,7 @@
- #endif
- 
- #include "ui/kbd-state.h"
--#ifdef CONFIG_OPENGL
-+#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
- # include "ui/egl-helpers.h"
- #endif
- 
-@@ -45,7 +45,7 @@ struct sdl2_console {
-     bool gui_keysym;
-     SDL_GLContext winctx;
-     QKbdState *kbd;
--#ifdef CONFIG_OPENGL
-+#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
-     QemuGLShader *gls;
-     egl_fb guest_fb;
-     egl_fb win_fb;
-@@ -79,18 +79,15 @@ void sdl2_gl_switch(DisplayChangeListener *dcl,
- void sdl2_gl_refresh(DisplayChangeListener *dcl);
- void sdl2_gl_redraw(struct sdl2_console *scon);
- 
--QEMUGLContext sdl2_gl_create_context(DisplayGLCtx *dgc,
--                                     QEMUGLParams *params);
--void sdl2_gl_destroy_context(DisplayGLCtx *dgc, QEMUGLContext ctx);
--int sdl2_gl_make_context_current(DisplayGLCtx *dgc,
--                                 QEMUGLContext ctx);
-+QEMUGLContext sdl2_gl_create_context(void *dg, QEMUGLParams *params);
-+void sdl2_gl_destroy_context(void *dg, QEMUGLContext ctx);
-+int sdl2_gl_make_context_current(void *dg, QEMUGLContext ctx);
- 
--void sdl2_gl_scanout_disable(DisplayChangeListener *dcl);
--void sdl2_gl_scanout_texture(DisplayChangeListener *dcl,
-+bool sdl2_gl_scanout_get_enabled(void *dg);
-+void sdl2_gl_scanout_disable(void *dg);
-+void sdl2_gl_scanout_texture(void *dg,
-                              uint32_t backing_id,
--                             bool backing_y_0_top,
--                             uint32_t backing_width,
--                             uint32_t backing_height,
-+                             DisplayGLTextureBorrower backing_borrow,
-                              uint32_t x, uint32_t y,
-                              uint32_t w, uint32_t h,
-                              void *d3d_tex2d);
 diff --git a/qemu-options.hx b/qemu-options.hx
 index dc694a99a3..7c68d1b0e0 100644
 --- a/qemu-options.hx
@@ -3835,102 +3785,6 @@ index 59bda83da6..008ba4bbf2 100644
 +#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
  module_dep("ui-opengl");
  #endif
-diff --git a/ui/sdl2-gl.c b/ui/sdl2-gl.c
-index e01d9ab0c7..19ed258139 100644
---- a/ui/sdl2-gl.c
-+++ b/ui/sdl2-gl.c
-@@ -136,10 +136,9 @@ void sdl2_gl_redraw(struct sdl2_console *scon)
-     }
- }
- 
--QEMUGLContext sdl2_gl_create_context(DisplayGLCtx *dgc,
--                                     QEMUGLParams *params)
-+QEMUGLContext sdl2_gl_create_context(void *dg, QEMUGLParams *params)
- {
--    struct sdl2_console *scon = container_of(dgc, struct sdl2_console, dgc);
-+    struct sdl2_console *scon = dg;
-     SDL_GLContext ctx;
- 
-     assert(scon->opengl);
-@@ -171,17 +170,16 @@ QEMUGLContext sdl2_gl_create_context(DisplayGLCtx *dgc,
-     return (QEMUGLContext)ctx;
- }
- 
--void sdl2_gl_destroy_context(DisplayGLCtx *dgc, QEMUGLContext ctx)
-+void sdl2_gl_destroy_context(void *dg, QEMUGLContext ctx)
- {
-     SDL_GLContext sdlctx = (SDL_GLContext)ctx;
- 
-     SDL_GL_DeleteContext(sdlctx);
- }
- 
--int sdl2_gl_make_context_current(DisplayGLCtx *dgc,
--                                 QEMUGLContext ctx)
-+int sdl2_gl_make_context_current(void *dg, QEMUGLContext ctx)
- {
--    struct sdl2_console *scon = container_of(dgc, struct sdl2_console, dgc);
-+    struct sdl2_console *scon = dg;
-     SDL_GLContext sdlctx = (SDL_GLContext)ctx;
- 
-     assert(scon->opengl);
-@@ -189,9 +187,9 @@ int sdl2_gl_make_context_current(DisplayGLCtx *dgc,
-     return SDL_GL_MakeCurrent(scon->real_window, sdlctx);
- }
- 
--void sdl2_gl_scanout_disable(DisplayChangeListener *dcl)
-+void sdl2_gl_scanout_disable(void *dg)
- {
--    struct sdl2_console *scon = container_of(dcl, struct sdl2_console, dcl);
-+    struct sdl2_console *scon = dg;
- 
-     assert(scon->opengl);
-     scon->w = 0;
-@@ -199,18 +197,31 @@ void sdl2_gl_scanout_disable(DisplayChangeListener *dcl)
-     sdl2_set_scanout_mode(scon, false);
- }
- 
--void sdl2_gl_scanout_texture(DisplayChangeListener *dcl,
-+bool sdl2_gl_scanout_get_enabled(void *dg)
-+{
-+    return ((struct sdl2_console *)dg)->scanout_mode;
-+}
-+
-+void sdl2_gl_scanout_texture(void *dg,
-                              uint32_t backing_id,
--                             bool backing_y_0_top,
--                             uint32_t backing_width,
--                             uint32_t backing_height,
-+                             DisplayGLTextureBorrower backing_borrow,
-                              uint32_t x, uint32_t y,
-                              uint32_t w, uint32_t h,
-                              void *d3d_tex2d)
- {
--    struct sdl2_console *scon = container_of(dcl, struct sdl2_console, dcl);
-+    struct sdl2_console *scon = dg;
-+    bool backing_y_0_top;
-+    uint32_t backing_width;
-+    uint32_t backing_height;
- 
-     assert(scon->opengl);
-+
-+    GLuint backing_texture = backing_borrow(backing_id, &backing_y_0_top,
-+                                            &backing_width, &backing_height);
-+    if (!backing_texture) {
-+        return;
-+    }
-+
-     scon->x = x;
-     scon->y = y;
-     scon->w = w;
-@@ -221,7 +232,7 @@ void sdl2_gl_scanout_texture(DisplayChangeListener *dcl,
- 
-     sdl2_set_scanout_mode(scon, true);
-     egl_fb_setup_for_tex(&scon->guest_fb, backing_width, backing_height,
--                         backing_id, false);
-+                         backing_texture, false);
- }
- 
- void sdl2_gl_scanout_flush(DisplayChangeListener *dcl,
 diff --git a/ui/sdl2.c b/ui/sdl2.c
 index cda4293a53..c6dbd33a6c 100644
 --- a/ui/sdl2.c
