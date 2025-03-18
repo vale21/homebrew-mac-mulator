@@ -1,11 +1,11 @@
-From 5a411040c9e66a330830c7b074f7fbe88730653b Mon Sep 17 00:00:00 2001
+From c7686190e8f36ecb35e1a4a4472a8d31c18bda75 Mon Sep 17 00:00:00 2001
 From: Valerio Volpi <valerio.volpi@quantabrain.org>
 Date: Tue, 18 Mar 2025 10:46:07 +0100
 Subject: [PATCH] Applying patch
 
 ---
  block/file-posix.c               |   17 +
- configure                        | 1209 +++++++++++++++++++++++++++++-
+ configure                        | 1185 +++++++++++++++++++++++++++++-
  contrib/vhost-user-gpu/virgl.c   |    8 +-
  hw/display/vhost-user-gpu.c      |    2 +-
  hw/display/virtio-gpu-virgl.c    |   29 +
@@ -16,7 +16,7 @@ Subject: [PATCH] Applying patch
  include/ui/egl-helpers.h         |    4 +-
  include/ui/gtk.h                 |   54 +-
  include/ui/sdl2.h                |   21 +-
- meson.build                      |  205 +++++
+ meson.build                      |  205 ++++++
  qemu-options.hx                  |   20 +
  ui/cocoa/app_controller.m        |  676 +++++++++++++++++
  ui/cocoa/main.m                  |  852 +++++++++++++++++++++
@@ -27,14 +27,14 @@ Subject: [PATCH] Applying patch
  ui/egl-headless.c                |  138 ++--
  ui/egl-helpers.c                 |  140 ++--
  ui/gtk-egl.c                     |   85 ++-
- ui/gtk-gl-area.c                 |   88 +--
- ui/gtk.c                         |   82 +-
+ ui/gtk-gl-area.c                 |   88 ++-
+ ui/gtk.c                         |   82 ++-
  ui/meson.build                   |   27 +-
  ui/sdl2-gl.c                     |   41 +-
  ui/sdl2.c                        |   37 +-
  ui/shader.c                      |   14 +-
  ui/spice-display.c               |   57 +-
- 30 files changed, 5358 insertions(+), 416 deletions(-)
+ 30 files changed, 5334 insertions(+), 416 deletions(-)
  create mode 100644 include/ui/cocoa.h
  create mode 100644 ui/cocoa/app_controller.m
  create mode 100644 ui/cocoa/main.m
@@ -85,7 +85,7 @@ index 56d1972d15..dbca7a52c0 100644
      fcntl_flags |= O_NOATIME;
  #endif
 diff --git a/configure b/configure
-index 02f1dd2311..1eedea8240 100755
+index 02f1dd2311..8d6536c7df 100755
 --- a/configure
 +++ b/configure
 @@ -195,6 +195,107 @@ EXTRA_LDFLAGS=""
@@ -196,7 +196,7 @@ index 02f1dd2311..1eedea8240 100755
  for opt do
    optarg=$(expr "x$opt" : 'x[^=]*=\(.*\)')
    case "$opt" in
-@@ -1699,7 +1800,900 @@ if test "$host_os" = "linux" && test -n "$linux_arch"; then
+@@ -1699,7 +1800,876 @@ if test "$host_os" = "linux" && test -n "$linux_arch"; then
    symlink "$source_path/linux-headers/asm-$linux_arch" linux-headers/asm
  fi
  
@@ -243,30 +243,6 @@ index 02f1dd2311..1eedea8240 100755
 +    else
 +        gio=yes
 +    fi
-+fi
-+
-+# Sanity check that the current size_t matches the
-+# size that glib thinks it should be. This catches
-+# problems on multi-arch where people try to build
-+# 32-bit QEMU while pointing at 64-bit glib headers
-+cat > $TMPC <<EOF
-+#include <glib.h>
-+#include <unistd.h>
-+
-+#define QEMU_BUILD_BUG_ON(x) \
-+  typedef char qemu_build_bug_on[(x)?-1:1] __attribute__((unused));
-+
-+int main(void) {
-+   QEMU_BUILD_BUG_ON(sizeof(size_t) != GLIB_SIZEOF_SIZE_T);
-+   return 0;
-+}
-+EOF
-+
-+if ! compile_prog "$glib_cflags" "$glib_libs" ; then
-+    error_exit "sizeof(size_t) doesn't match GLIB_SIZEOF_SIZE_T."\
-+               "You probably need to set PKG_CONFIG_LIBDIR"\
-+	       "to point to the right pkg-config files for your"\
-+	       "build target"
 +fi
 +
 +# Silence clang warnings triggered by glib < 2.57.2
@@ -1098,7 +1074,7 @@ index 02f1dd2311..1eedea8240 100755
  
  # Mac OS X ships with a broken assembler
  if have_target i386-softmmu x86_64-softmmu && \
-@@ -1763,6 +2757,219 @@ echo "SUBDIRS=$subdirs" >> $config_host_mak
+@@ -1763,6 +2733,219 @@ echo "SUBDIRS=$subdirs" >> $config_host_mak
  if test "$rust" != disabled; then
    echo "RUST_TARGET_TRIPLE=$rust_target_triple" >> $config_host_mak
  fi
