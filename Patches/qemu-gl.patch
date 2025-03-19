@@ -1,4 +1,4 @@
-From 409afd8b08330234f787091213e1d81af2869b85 Mon Sep 17 00:00:00 2001
+From b0215b9ec5f95c9d358bfdd9dba923c04b041d26 Mon Sep 17 00:00:00 2001
 From: Valerio Volpi <valerio.volpi@quantabrain.org>
 Date: Wed, 19 Mar 2025 11:48:38 +0100
 Subject: [PATCH] Cocoa GL debug
@@ -9,15 +9,15 @@ Subject: [PATCH] Cocoa GL debug
  include/ui/gtk.h                 |  54 +-
  qemu-options.hx                  |  20 +
  system/vl.c                      |   4 +-
- ui/cocoa/app_controller.m        | 676 +++++++++++++++++++++++
- ui/cocoa/main.m                  | 852 ++++++++++++++++++++++++++++
+ ui/cocoa/app_controller.m        | 688 +++++++++++++++++++++++
+ ui/cocoa/main.m                  | 873 +++++++++++++++++++++++++++++
  ui/cocoa/pasteboard_type_owner.m |  75 +++
  ui/cocoa/view.m                  | 921 +++++++++++++++++++++++++++++++
  ui/egl-helpers.c                 | 140 ++---
  ui/gtk-egl.c                     |   2 +-
  ui/meson.build                   |   4 +-
  ui/shader.c                      |  14 +-
- 13 files changed, 2788 insertions(+), 105 deletions(-)
+ 13 files changed, 2821 insertions(+), 105 deletions(-)
  create mode 100644 include/ui/cocoa.h
  create mode 100644 ui/cocoa/app_controller.m
  create mode 100644 ui/cocoa/main.m
@@ -327,10 +327,10 @@ index ec93988a03..3fcd6fa0e7 100644
  #endif
 diff --git a/ui/cocoa/app_controller.m b/ui/cocoa/app_controller.m
 new file mode 100644
-index 0000000000..4be3df68d5
+index 0000000000..b5e029b434
 --- /dev/null
 +++ b/ui/cocoa/app_controller.m
-@@ -0,0 +1,676 @@
+@@ -0,0 +1,688 @@
 +/*
 + * QEMU Cocoa CG display driver
 + *
@@ -357,20 +357,32 @@ index 0000000000..4be3df68d5
 +
 +#include "qemu/osdep.h"
 +
-+#include "qemu-common.h"
++#import <Cocoa/Cocoa.h>
++#import <QuartzCore/QuartzCore.h>
++#include <crt_externs.h>
++
++#include "qemu/help-texts.h"
++#include "qemu-main.h"
++#include "ui/clipboard.h"
 +#include "ui/cocoa.h"
-+#include "sysemu/sysemu.h"
-+#include "sysemu/runstate.h"
-+#include "sysemu/cpu-throttle.h"
++#include "ui/console.h"
++#include "ui/input.h"
++#include "ui/kbd-state.h"
++#include "system/system.h"
++#include "system/runstate.h"
++#include "system/runstate-action.h"
++#include "system/cpu-throttle.h"
 +#include "qapi/error.h"
 +#include "qapi/qapi-commands-block.h"
 +#include "qapi/qapi-commands-machine.h"
 +#include "qapi/qapi-commands-misc.h"
-+#include "sysemu/blockdev.h"
++#include "system/blockdev.h"
 +#include "qemu-version.h"
 +#include "qemu/cutils.h"
 +#include "qemu/main-loop.h"
 +#include "qemu/module.h"
++#include "qemu/error-report.h"
++#include <Carbon/Carbon.h>
 +#include "hw/core/cpu.h"
 +
 +#ifndef MAC_OS_X_VERSION_10_13
@@ -1009,10 +1021,10 @@ index 0000000000..4be3df68d5
 +@end
 diff --git a/ui/cocoa/main.m b/ui/cocoa/main.m
 new file mode 100644
-index 0000000000..db1529c554
+index 0000000000..480ab1ea4c
 --- /dev/null
 +++ b/ui/cocoa/main.m
-@@ -0,0 +1,852 @@
+@@ -0,0 +1,873 @@
 +/*
 + * QEMU Cocoa CG display driver
 + *
@@ -1039,12 +1051,33 @@ index 0000000000..db1529c554
 +
 +#include "qemu/osdep.h"
 +
++#import <Cocoa/Cocoa.h>
++#import <QuartzCore/QuartzCore.h>
 +#include <crt_externs.h>
 +
-+#include "qemu-common.h"
++#include "qemu/help-texts.h"
++#include "qemu-main.h"
++#include "ui/clipboard.h"
 +#include "ui/cocoa.h"
++#include "ui/console.h"
 +#include "ui/input.h"
-+#include "sysemu/sysemu.h"
++#include "ui/kbd-state.h"
++#include "system/system.h"
++#include "system/runstate.h"
++#include "system/runstate-action.h"
++#include "system/cpu-throttle.h"
++#include "qapi/error.h"
++#include "qapi/qapi-commands-block.h"
++#include "qapi/qapi-commands-machine.h"
++#include "qapi/qapi-commands-misc.h"
++#include "system/blockdev.h"
++#include "qemu-version.h"
++#include "qemu/cutils.h"
++#include "qemu/main-loop.h"
++#include "qemu/module.h"
++#include "qemu/error-report.h"
++#include <Carbon/Carbon.h>
++#include "hw/core/cpu.h"
 +
 +#ifdef CONFIG_EGL
 +#include "ui/egl-context.h"
