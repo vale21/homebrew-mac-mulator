@@ -1,4 +1,4 @@
-From 1589b98867c1b7963f33c1ed9fe2e67f53907f8b Mon Sep 17 00:00:00 2001
+From 3df37c2e2bc35133a1cdd0be66b49e3b2cd2a7e0 Mon Sep 17 00:00:00 2001
 From: Valerio Volpi <valerio.volpi@quantabrain.org>
 Date: Wed, 19 Mar 2025 11:48:38 +0100
 Subject: [PATCH] Cocoa GL debug
@@ -10,13 +10,14 @@ Subject: [PATCH] Cocoa GL debug
  qemu-options.hx                  |  20 +
  system/vl.c                      |   4 +-
  ui/cocoa/app_controller.m        | 676 +++++++++++++++++++++++
- ui/cocoa/main.m                  | 856 ++++++++++++++++++++++++++++
+ ui/cocoa/main.m                  | 852 ++++++++++++++++++++++++++++
  ui/cocoa/pasteboard_type_owner.m |  75 +++
  ui/cocoa/view.m                  | 921 +++++++++++++++++++++++++++++++
  ui/egl-helpers.c                 | 140 ++---
  ui/gtk-egl.c                     |   2 +-
+ ui/meson.build                   |   4 +-
  ui/shader.c                      |  14 +-
- 12 files changed, 2789 insertions(+), 104 deletions(-)
+ 13 files changed, 2788 insertions(+), 105 deletions(-)
  create mode 100644 include/ui/cocoa.h
  create mode 100644 ui/cocoa/app_controller.m
  create mode 100644 ui/cocoa/main.m
@@ -1008,10 +1009,10 @@ index 0000000000..d79ffd4f7b
 +@end
 diff --git a/ui/cocoa/main.m b/ui/cocoa/main.m
 new file mode 100644
-index 0000000000..45d1c36521
+index 0000000000..db1529c554
 --- /dev/null
 +++ b/ui/cocoa/main.m
-@@ -0,0 +1,856 @@
+@@ -0,0 +1,852 @@
 +/*
 + * QEMU Cocoa CG display driver
 + *
@@ -1762,10 +1763,6 @@ index 0000000000..45d1c36521
 +
 +static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
 +{
-+    if (o->has_gl && o->gl) {
-+        display_opengl = 1;
-+    }
-+    
 +    COCOA_DEBUG("qemu_cocoa: cocoa_display_init\n");
 +
 +    screen.cursor_show = opts->has_show_cursor && opts->show_cursor;
@@ -3080,6 +3077,21 @@ index f7a428c86a..a47721dbee 100644
          (vc->gfx.ectx, (EGLNativeWindowType)x11_window);
  
      assert(vc->gfx.esurface);
+diff --git a/ui/meson.build b/ui/meson.build
+index 35fb04cadf..0bf2327f47 100644
+--- a/ui/meson.build
++++ b/ui/meson.build
+@@ -29,7 +29,9 @@ system_ss.add(when: spice_protocol, if_true: files('vdagent.c'))
+ if host_os == 'linux'
+   system_ss.add(files('input-linux.c', 'udmabuf.c'))
+ endif
+-system_ss.add(when: cocoa, if_true: files('cocoa.m'))
++system_ss.add(when: cocoa,
++               if_true: files('cocoa/main.m', 'cocoa/pasteboard_type_owner.m',
++                              'cocoa/view.m', 'cocoa/app_controller.m'))
+ 
+ vnc_ss = ss.source_set()
+ vnc_ss.add(files(
 diff --git a/ui/shader.c b/ui/shader.c
 index ab448c41d4..c5c9f754cc 100644
 --- a/ui/shader.c
