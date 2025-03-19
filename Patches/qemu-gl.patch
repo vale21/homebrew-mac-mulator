@@ -1,4 +1,4 @@
-From e159009081db27ee87004dd3f88a2407af3c964a Mon Sep 17 00:00:00 2001
+From 8c3b4771f5235645763a7696c91fd1d8ad819f3e Mon Sep 17 00:00:00 2001
 From: Valerio Volpi <valerio.volpi@quantabrain.org>
 Date: Wed, 19 Mar 2025 11:48:38 +0100
 Subject: [PATCH] Cocoa GL debug
@@ -1008,7 +1008,7 @@ index 0000000000..d79ffd4f7b
 +@end
 diff --git a/ui/cocoa/main.m b/ui/cocoa/main.m
 new file mode 100644
-index 0000000000..db1529c554
+index 0000000000..072b41d220
 --- /dev/null
 +++ b/ui/cocoa/main.m
 @@ -0,0 +1,852 @@
@@ -1755,9 +1755,9 @@ index 0000000000..db1529c554
 +static void cocoa_display_early_init(DisplayOptions *o)
 +{
 +    assert(o->type == DISPLAY_TYPE_COCOA);
-+    if (o->has_gl && o->gl) {
++    // if (o->has_gl && o->gl) {
 +        display_opengl = 1;
-+    }
++    // }
 +}
 +
 +static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)

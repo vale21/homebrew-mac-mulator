@@ -39,7 +39,7 @@ class Qemu < Formula
 
   patch :p1 do
     url "https://raw.githubusercontent.com/vale21/homebrew-mac-mulator/refs/heads/build-gl/Patches/qemu-gl.patch"
-    sha256 "6ce4c8beb9796cba8e7cd933fa9bc5fc519989343713dcca499e863389a3f129"
+    sha256 "5549424e49c5ec38ac9bbf8a63abf79068762e19f6001c2921b05dee78d5285b"
   end
 
   def install
@@ -82,7 +82,7 @@ class Qemu < Formula
     system "curl", "-L", "-o", "qemu-icons.patch", "https://raw.githubusercontent.com/vale21/homebrew-mac-mulator/refs/heads/main/Patches/qemu-icons.patch"
     system "git", "apply", "qemu-icons.patch"
     system "./configure", *args
-    system "make", "V=1", "install"
+    system "make", "V=1", "CFLAGS=\"-DDEBUG\"", "install"
   end
 
   test do
