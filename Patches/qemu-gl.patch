@@ -1,4 +1,4 @@
-From b0215b9ec5f95c9d358bfdd9dba923c04b041d26 Mon Sep 17 00:00:00 2001
+From 54ae8fcbcacd6fddb99987cecff8c1ed06563e5f Mon Sep 17 00:00:00 2001
 From: Valerio Volpi <valerio.volpi@quantabrain.org>
 Date: Wed, 19 Mar 2025 11:48:38 +0100
 Subject: [PATCH] Cocoa GL debug
@@ -10,14 +10,14 @@ Subject: [PATCH] Cocoa GL debug
  qemu-options.hx                  |  20 +
  system/vl.c                      |   4 +-
  ui/cocoa/app_controller.m        | 688 +++++++++++++++++++++++
- ui/cocoa/main.m                  | 873 +++++++++++++++++++++++++++++
+ ui/cocoa/main.m                  | 872 +++++++++++++++++++++++++++++
  ui/cocoa/pasteboard_type_owner.m |  75 +++
  ui/cocoa/view.m                  | 921 +++++++++++++++++++++++++++++++
  ui/egl-helpers.c                 | 140 ++---
  ui/gtk-egl.c                     |   2 +-
  ui/meson.build                   |   4 +-
  ui/shader.c                      |  14 +-
- 13 files changed, 2821 insertions(+), 105 deletions(-)
+ 13 files changed, 2820 insertions(+), 105 deletions(-)
  create mode 100644 include/ui/cocoa.h
  create mode 100644 ui/cocoa/app_controller.m
  create mode 100644 ui/cocoa/main.m
@@ -327,7 +327,7 @@ index ec93988a03..3fcd6fa0e7 100644
  #endif
 diff --git a/ui/cocoa/app_controller.m b/ui/cocoa/app_controller.m
 new file mode 100644
-index 0000000000..b5e029b434
+index 0000000000..751924eb5e
 --- /dev/null
 +++ b/ui/cocoa/app_controller.m
 @@ -0,0 +1,688 @@
@@ -399,9 +399,9 @@ index 0000000000..b5e029b434
 +#endif
 +
 +// Utility function to run specified code block with iothread lock held
-+static void with_iothread_lock(CodeBlock block)
++static void with_bql(CodeBlock block)
 +{
-+    bool locked = qemu_mutex_iothread_locked();
++    bool locked = bql_locked();
 +    if (!locked) {
 +        bql_lock();
 +    }
@@ -832,15 +832,15 @@ index 0000000000..b5e029b434
 +/* Displays the console on the screen */
 +- (void)displayConsole:(id)sender
 +{
-+    with_iothread_lock(^{
-+        console_select([sender tag]);
++    with_bql(^{
++        [cocoaView selectConsoleLocked:[sender tag]];
 +    });
 +}
 +
 +/* Pause the guest */
 +- (void)pauseQEMU:(id)sender
 +{
-+    with_iothread_lock(^{
++    with_bql(^{
 +        qmp_stop(NULL);
 +    });
 +    [sender setEnabled: NO];
@@ -851,7 +851,7 @@ index 0000000000..b5e029b434
 +/* Resume running the guest operating system */
 +- (void)resumeQEMU:(id) sender
 +{
-+    with_iothread_lock(^{
++    with_bql(^{
 +        qmp_cont(NULL);
 +    });
 +    [sender setEnabled: NO];
@@ -862,7 +862,7 @@ index 0000000000..b5e029b434
 +/* Restarts QEMU */
 +- (void)restartQEMU:(id)sender
 +{
-+    with_iothread_lock(^{
++    with_bql(^{
 +        qmp_system_reset(NULL);
 +    });
 +}
@@ -870,7 +870,7 @@ index 0000000000..b5e029b434
 +/* Powers down QEMU */
 +- (void)powerDownQEMU:(id)sender
 +{
-+    with_iothread_lock(^{
++    with_bql(^{
 +        qmp_system_powerdown(NULL);
 +    });
 +}
@@ -889,7 +889,7 @@ index 0000000000..b5e029b434
 +    }
 +
 +    __block Error *err = NULL;
-+    with_iothread_lock(^{
++    with_bql(^{
 +        qmp_eject(true, [drive cStringUsingEncoding: NSASCIIStringEncoding],
 +                  false, NULL, false, false, &err);
 +    });
@@ -925,7 +925,7 @@ index 0000000000..b5e029b434
 +        }
 +
 +        __block Error *err = NULL;
-+        with_iothread_lock(^{
++        with_bql(^{
 +            qmp_blockdev_change_medium(true,
 +                                       [drive cStringUsingEncoding:
 +                                                  NSASCIIStringEncoding],
@@ -1007,7 +1007,7 @@ index 0000000000..b5e029b434
 +    // get the throttle percentage
 +    throttle_pct = [sender tag];
 +
-+    with_iothread_lock(^{
++    with_bql(^{
 +        cpu_throttle_set(throttle_pct);
 +    });
 +    COCOA_DEBUG("cpu throttling at %d%c\n", cpu_throttle_get_percentage(), '%');
@@ -1021,10 +1021,10 @@ index 0000000000..b5e029b434
 +@end
 diff --git a/ui/cocoa/main.m b/ui/cocoa/main.m
 new file mode 100644
-index 0000000000..480ab1ea4c
+index 0000000000..50451a4b59
 --- /dev/null
 +++ b/ui/cocoa/main.m
-@@ -0,0 +1,873 @@
+@@ -0,0 +1,872 @@
 +/*
 + * QEMU Cocoa CG display driver
 + *
@@ -1799,8 +1799,7 @@ index 0000000000..480ab1ea4c
 +    COCOA_DEBUG("qemu_cocoa: cocoa_display_init\n");
 +
 +    screen.cursor_show = opts->has_show_cursor && opts->show_cursor;
-+    screen.swap_option_command = opts->u.cocoa.has_swap_option_command &&
-+        opts->u.cocoa.swap_option_command;
++    screen.swap_option_command = false // opts->u.cocoa.has_swap_option_command && opts->u.cocoa.swap_option_command;
 +
 +    /* Tell main thread to go ahead and create the app and enter the run loop */
 +    qemu_sem_post(&display_init_sem);
@@ -1830,7 +1829,7 @@ index 0000000000..480ab1ea4c
 +
 +        for (unsigned int index = 0; index < console_count; index++) {
 +            QemuConsole *con = qemu_console_lookup_by_index(index);
-+            console_set_displayglcontext(con, dgs + index);
++            con->dg = dgs + index;
 +        }
 +
 +        if (opts->gl == DISPLAY_GL_MODE_ES) {
@@ -1864,7 +1863,7 @@ index 0000000000..480ab1ea4c
 +        // register vga output callbacks
 +        screen.dcl.ops = &dcl_gl_ops;
 +
-+        register_displayglops(&dg_ops);
++        con->gl = &dg_ops;
 +#else
 +        error_report("OpenGL is not enabled - exiting");
 +        exit(1);
@@ -1981,7 +1980,7 @@ index 0000000000..c7583be972
 +@end
 diff --git a/ui/cocoa/view.m b/ui/cocoa/view.m
 new file mode 100644
-index 0000000000..09375603fd
+index 0000000000..f0ea3de4b8
 --- /dev/null
 +++ b/ui/cocoa/view.m
 @@ -0,0 +1,921 @@
@@ -2655,7 +2654,7 @@ index 0000000000..09375603fd
 +
 +                        // enable graphic console
 +                        case '1' ... '9':
-+                            console_select(key - '0' - 1); /* ascii math */
++                            [self selectConsoleLocked:key - '0' - 1]; /* ascii math */
 +                            return true;
 +
 +                        // release the mouse grab
