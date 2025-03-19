@@ -1,10 +1,11 @@
-From 4cdb35865dd7ecdd40fd7671432e436f1c78a79c Mon Sep 17 00:00:00 2001
+From e21f523c9e109100b64e0b43d609568676ff0681 Mon Sep 17 00:00:00 2001
 From: Valerio Volpi <valerio.volpi@quantabrain.org>
 Date: Wed, 19 Mar 2025 17:50:46 +0100
 Subject: [PATCH] Using custom Cocoa code
 
 ---
  include/ui/cocoa.h               |  127 ++
+ include/ui/console.h             |   30 +
  include/ui/egl-helpers.h         |    4 +-
  include/ui/gtk.h                 |   54 +-
  qemu-options.hx                  |   20 +
@@ -18,7 +19,7 @@ Subject: [PATCH] Using custom Cocoa code
  ui/gtk-egl.c                     |    2 +-
  ui/meson.build                   |    4 +-
  ui/shader.c                      |   14 +-
- 14 files changed, 2821 insertions(+), 2282 deletions(-)
+ 15 files changed, 2851 insertions(+), 2282 deletions(-)
  create mode 100644 include/ui/cocoa.h
  delete mode 100644 ui/cocoa.m
  create mode 100644 ui/cocoa/app_controller.m
@@ -159,6 +160,47 @@ index 0000000000..12ccc97e6f
 +@end
 +
 +#endif
+diff --git a/include/ui/console.h b/include/ui/console.h
+index 46b3128185..04ecfc9d0d 100644
+--- a/include/ui/console.h
++++ b/include/ui/console.h
+@@ -276,6 +276,36 @@ struct DisplayChangeListener {
+     QLIST_ENTRY(DisplayChangeListener) next;
+ };
+ 
++typedef uint32_t (* DisplayGLTextureBorrower)(uint32_t id, bool *y_0_top,
++                                              uint32_t *width, uint32_t *height);
++
++typedef struct DisplayGLOps {
++    QEMUGLContext (*dpy_gl_ctx_create)(void *dg, QEMUGLParams *params);
++    void (*dpy_gl_ctx_destroy)(void *dg, QEMUGLContext ctx);
++    int (*dpy_gl_ctx_make_current)(void *dg, QEMUGLContext ctx);
++
++    bool (*dpy_gl_scanout_get_enabled)(void *dg);
++    void (*dpy_gl_scanout_disable)(void *dg);
++    void (*dpy_gl_scanout_texture)(void *dg,
++                                   uint32_t backing_id,
++                                   DisplayGLTextureBorrower backing_borrow,
++                                   uint32_t x, uint32_t y,
++                                   uint32_t w, uint32_t h);
++
++    /* optional (default to true if has dpy_gl_scanout_dmabuf) */
++    bool (*dpy_has_dmabuf)(void *dg);
++    /* optional */
++    void (*dpy_gl_scanout_dmabuf)(void *dg, QemuDmaBuf *dmabuf);
++    /* optional */
++    void (*dpy_gl_cursor_dmabuf)(void *dg,
++                                 QemuDmaBuf *dmabuf, bool have_hot,
++                                 uint32_t hot_x, uint32_t hot_y);
++    /* optional */
++    void (*dpy_gl_cursor_position)(void *dg, uint32_t pos_x, uint32_t pos_y);
++    /* optional */
++    void (*dpy_gl_release_dmabuf)(void *dg, QemuDmaBuf *dmabuf);
++} DisplayGLOps;
++
+ typedef struct DisplayGLCtxOps {
+     bool (*dpy_gl_ctx_is_compatible_dcl)(DisplayGLCtx *dgc,
+                                          DisplayChangeListener *dcl);
 diff --git a/include/ui/egl-helpers.h b/include/ui/egl-helpers.h
 index 4b8c0d2281..d38892ff05 100644
 --- a/include/ui/egl-helpers.h
@@ -3206,7 +3248,7 @@ index 0000000000..08e5ad34d2
 +@end
 diff --git a/ui/cocoa/main.m b/ui/cocoa/main.m
 new file mode 100644
-index 0000000000..57cecc60c2
+index 0000000000..20424bad36
 --- /dev/null
 +++ b/ui/cocoa/main.m
 @@ -0,0 +1,873 @@
@@ -3323,7 +3365,7 @@ index 0000000000..57cecc60c2
 +
 +static QemuClipboardPeer cbpeer = {
 +    .name = "cocoa",
-+    .update = { .notify = cocoa_clipboard_notify },
++    .notifier = { .notify = cocoa_clipboard_notify },
 +    .request = cocoa_clipboard_request
 +};
 +
@@ -3521,7 +3563,7 @@ index 0000000000..57cecc60c2
 +    COCOA_DEBUG("qemu_cocoa: cocoa_refresh\n");
 +    graphic_hw_update(NULL);
 +
-+    if (qemu_input_is_absolute(dcl.con)) {
++    if (qemu_input_is_absolute(dcl->con)) {
 +        dispatch_async(dispatch_get_main_queue(), ^{
 +            if (![[appController cocoaView] isAbsoluteEnabled]) {
 +                if ([[appController cocoaView] isMouseGrabbed]) {
@@ -3546,7 +3588,7 @@ index 0000000000..57cecc60c2
 +    [pool release];
 +}
 +
-+static void cocoa_mouse_set(DisplayChangeListener *dcl, int x, int y, int on)
++static void cocoa_mouse_set(DisplayChangeListener *dcl, int x, int y, bool on)
 +{
 +    qemu_mutex_lock(&screen.draw_mutex);
 +    int full_height = surface_height(screen.surface);
@@ -3912,7 +3954,7 @@ index 0000000000..57cecc60c2
 +    });
 +}
 +
-+static void cocoa_gl_mouse_set(DisplayChangeListener *dcl, int x, int y, int on)
++static void cocoa_gl_mouse_set(DisplayChangeListener *dcl, int x, int y, bool on)
 +{
 +    screen.mouse_x = x;
 +    screen.mouse_y = y;
@@ -4166,7 +4208,7 @@ index 0000000000..c7583be972
 +@end
 diff --git a/ui/cocoa/view.m b/ui/cocoa/view.m
 new file mode 100644
-index 0000000000..f0ea3de4b8
+index 0000000000..b7b353054f
 --- /dev/null
 +++ b/ui/cocoa/view.m
 @@ -0,0 +1,921 @@
@@ -4198,7 +4240,7 @@ index 0000000000..f0ea3de4b8
 +
 +#include "ui/cocoa.h"
 +#include "ui/input.h"
-+#include "sysemu/sysemu.h"
++#include "system/system.h"
 +#include "qemu/main-loop.h"
 +#include "qemu/error-report.h"
 +#include <Carbon/Carbon.h>
