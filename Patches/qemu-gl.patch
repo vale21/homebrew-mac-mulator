@@ -1,13 +1,14 @@
-From 6a7ddb3e491771c5c88bc94db53f76dbd299badc Mon Sep 17 00:00:00 2001
+From e159009081db27ee87004dd3f88a2407af3c964a Mon Sep 17 00:00:00 2001
 From: Valerio Volpi <valerio.volpi@quantabrain.org>
-Date: Wed, 19 Mar 2025 10:04:02 +0100
-Subject: [PATCH] Cocoa GL
+Date: Wed, 19 Mar 2025 11:48:38 +0100
+Subject: [PATCH] Cocoa GL debug
 
 ---
  include/ui/cocoa.h               | 127 +++++
  include/ui/egl-helpers.h         |   4 +-
  include/ui/gtk.h                 |  54 +-
  qemu-options.hx                  |  20 +
+ system/vl.c                      |   4 +-
  ui/cocoa/app_controller.m        | 676 +++++++++++++++++++++++
  ui/cocoa/main.m                  | 852 ++++++++++++++++++++++++++++
  ui/cocoa/pasteboard_type_owner.m |  75 +++
@@ -15,7 +16,7 @@ Subject: [PATCH] Cocoa GL
  ui/egl-helpers.c                 | 140 ++---
  ui/gtk-egl.c                     |   2 +-
  ui/shader.c                      |  14 +-
- 11 files changed, 2783 insertions(+), 102 deletions(-)
+ 12 files changed, 2785 insertions(+), 104 deletions(-)
  create mode 100644 include/ui/cocoa.h
  create mode 100644 ui/cocoa/app_controller.m
  create mode 100644 ui/cocoa/main.m
@@ -308,6 +309,21 @@ index dc694a99a3..7c68d1b0e0 100644
  #ifdef CONFIG_VMNET
      "-netdev vmnet-host,id=str[,isolated=on|off][,net-uuid=uuid]\n"
      "         [,start-address=addr,end-address=addr,subnet-mask=mask]\n"
+diff --git a/system/vl.c b/system/vl.c
+index ec93988a03..3fcd6fa0e7 100644
+--- a/system/vl.c
++++ b/system/vl.c
+@@ -2035,8 +2035,8 @@ static void qemu_create_early_backends(void)
+ 
+     if (dpy.has_gl && dpy.gl != DISPLAY_GL_MODE_OFF && display_opengl == 0) {
+ #if defined(CONFIG_OPENGL)
+-        error_report("OpenGL is not supported by display backend '%s'",
+-                     DisplayType_str(dpy.type));
++        error_report("OpenGL is not supported by display backend '%s'. Has GL: '%d', GL: '%d', display_opengl: '%d'",
++                     DisplayType_str(dpy.type), dpy.has_gl, dpy.gl, display_opengl);
+ #else
+         error_report("OpenGL support was not enabled in this build of QEMU");
+ #endif
 diff --git a/ui/cocoa/app_controller.m b/ui/cocoa/app_controller.m
 new file mode 100644
 index 0000000000..d79ffd4f7b
