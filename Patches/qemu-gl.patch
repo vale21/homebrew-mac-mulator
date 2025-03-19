@@ -1,31 +1,31 @@
-From 119eb49145d145f45bc57b752be20e5bba78cf20 Mon Sep 17 00:00:00 2001
+From ae8b6ddd50420567c9147d6b5725da684ba7a9ca Mon Sep 17 00:00:00 2001
 From: Valerio Volpi <valerio.volpi@quantabrain.org>
 Date: Wed, 19 Mar 2025 11:48:38 +0100
 Subject: [PATCH] Cocoa GL debug
 
 ---
- include/ui/cocoa.h       | 127 ++++++
+ include/ui/cocoa.h       | 129 ++++++
  include/ui/console.h     |   3 +
  include/ui/egl-helpers.h |   4 +-
  include/ui/gtk.h         |  54 +--
  qemu-options.hx          |  20 +
  system/vl.c              |   4 +-
- ui/cocoa.m               | 430 ++++++++++++++++++-
+ ui/cocoa.m               | 433 ++++++++++++++++++-
  ui/cocoa/main.m          | 872 +++++++++++++++++++++++++++++++++++++++
  ui/egl-helpers.c         | 140 ++++---
  ui/gtk-egl.c             |   2 +-
  ui/meson.build           |   3 +-
  ui/shader.c              |  14 +-
- 12 files changed, 1562 insertions(+), 111 deletions(-)
+ 12 files changed, 1566 insertions(+), 112 deletions(-)
  create mode 100644 include/ui/cocoa.h
  create mode 100644 ui/cocoa/main.m
 
 diff --git a/include/ui/cocoa.h b/include/ui/cocoa.h
 new file mode 100644
-index 0000000000..12ccc97e6f
+index 0000000000..6f1b736b11
 --- /dev/null
 +++ b/include/ui/cocoa.h
-@@ -0,0 +1,127 @@
+@@ -0,0 +1,129 @@
 +/*
 + * QEMU Cocoa CG display driver
 + *
@@ -88,6 +88,8 @@ index 0000000000..12ccc97e6f
 +    QemuClipboardInfo *info;
 +    QemuEvent event;
 +} QemuCocoaClipboard;
++
++@interface QemuCocoaAppController : NSObject<NSWindowDelegate, NSApplicationDelegate>
 +
 +@interface QemuCocoaView : NSView
 +{
@@ -336,7 +338,7 @@ index ec93988a03..3fcd6fa0e7 100644
          error_report("OpenGL support was not enabled in this build of QEMU");
  #endif
 diff --git a/ui/cocoa.m b/ui/cocoa.m
-index 23b7a736d7..f23e87e358 100644
+index 23b7a736d7..a1b50f1897 100644
 --- a/ui/cocoa.m
 +++ b/ui/cocoa.m
 @@ -11,7 +11,7 @@
@@ -348,7 +350,15 @@ index 23b7a736d7..f23e87e358 100644
   *
   * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
   * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-@@ -51,6 +51,11 @@
+@@ -31,6 +31,7 @@
+ #include "qemu/help-texts.h"
+ #include "qemu-main.h"
+ #include "ui/clipboard.h"
++#include "ui/cocoa.h"
+ #include "ui/console.h"
+ #include "ui/input.h"
+ #include "ui/kbd-state.h"
+@@ -51,6 +52,11 @@
  #include <Carbon/Carbon.h>
  #include "hw/core/cpu.h"
  
@@ -360,16 +370,15 @@ index 23b7a736d7..f23e87e358 100644
  #ifndef MAC_OS_VERSION_14_0
  #define MAC_OS_VERSION_14_0 140000
  #endif
-@@ -93,6 +98,8 @@ static void cocoa_switch(DisplayChangeListener *dcl,
+@@ -93,6 +99,7 @@ static void cocoa_switch(DisplayChangeListener *dcl,
      .dpy_mouse_set = cocoa_mouse_set,
      .dpy_cursor_define = cocoa_cursor_define,
  };
 +static QEMUScreen screen;
-+static QemuCocoaAppController *appController;
  static DisplayChangeListener dcl = {
      .ops = &dcl_ops,
  };
-@@ -111,6 +118,29 @@ static void cocoa_switch(DisplayChangeListener *dcl,
+@@ -111,6 +118,30 @@ static void cocoa_switch(DisplayChangeListener *dcl,
  static QemuEvent cbevent;
  static QemuCocoaPasteboardTypeOwner *cbowner;
  
@@ -387,6 +396,7 @@ index 23b7a736d7..f23e87e358 100644
 +static GLuint cursor_texture;
 +static int cursor_texture_width;
 +static int cursor_texture_height;
++static QemuCocoaAppController *controller;
 +
 +#ifdef CONFIG_EGL
 +static EGLSurface egl_surface;
@@ -399,7 +409,7 @@ index 23b7a736d7..f23e87e358 100644
  // Utility functions to run specified code block with the BQL held
  typedef void (^CodeBlock)(void);
  typedef bool (^BoolCodeBlock)(void);
-@@ -517,6 +547,12 @@ - (void) drawRect:(NSRect) rect
+@@ -517,6 +548,12 @@ - (void) drawRect:(NSRect) rect
  {
      COCOA_DEBUG("QemuCocoaView: drawRect\n");
  
@@ -412,7 +422,7 @@ index 23b7a736d7..f23e87e358 100644
      // get CoreGraphic context
      CGContextRef viewContextRef = [[NSGraphicsContext currentContext] CGContext];
  
-@@ -2087,6 +2123,331 @@ static void cocoa_cursor_define(DisplayChangeListener *dcl, QEMUCursor *cursor)
+@@ -2087,6 +2124,331 @@ static void cocoa_cursor_define(DisplayChangeListener *dcl, QEMUCursor *cursor)
      });
  }
  
@@ -459,7 +469,7 @@ index 23b7a736d7..f23e87e358 100644
 +
 +    [ctx retain];
 +    dispatch_async(dispatch_get_main_queue(), ^{
-+        [ctx setView:[appController cocoaView]];
++        [ctx setView:[controller cocoaView]];
 +        [ctx release];
 +    });
 +
@@ -555,7 +565,7 @@ index 23b7a736d7..f23e87e358 100644
 +        return;
 +    }
 +
-+    QemuCocoaView *cocoaView = [appController cocoaView];
++    QemuCocoaView *cocoaView = [controller cocoaView];
 +    NSSize size = [cocoaView convertSizeToBacking:[cocoaView frame].size];
 +    int full_height = surface_height(screen.surface);
 +    CGFloat d = size.height / full_height;
@@ -577,7 +587,7 @@ index 23b7a736d7..f23e87e358 100644
 +{
 +    cocoa_scanout_disable(dg);
 +
-+    QemuCocoaView *cocoaView = [appController cocoaView];
++    QemuCocoaView *cocoaView = [controller cocoaView];
 +    NSSize size = [cocoaView convertSizeToBacking:[cocoaView frame].size];
 +
 +    surface_gl_setup_viewport(gls, screen.surface, size.width, size.height);
@@ -660,7 +670,7 @@ index 23b7a736d7..f23e87e358 100644
 +    }
 +
 +    with_view_ctx(^{
-+        QemuCocoaView *cocoaView = [appController cocoaView];
++        QemuCocoaView *cocoaView = [controller cocoaView];
 +        NSSize size = [cocoaView convertSizeToBacking:[cocoaView frame].size];
 +
 +        glBindFramebuffer(GL_FRAMEBUFFER_EXT, 0);
@@ -744,7 +754,16 @@ index 23b7a736d7..f23e87e358 100644
  static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
  {
      NSAutoreleasePool * pool = [[NSAutoreleasePool alloc] init];
-@@ -2145,11 +2506,63 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
+@@ -2101,7 +2463,7 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
+     [QemuApplication sharedApplication];
+ 
+     // Create an Application controller
+-    QemuCocoaAppController *controller = [[QemuCocoaAppController alloc] init];
++    *controller = [[QemuCocoaAppController alloc] init];
+     [NSApp setDelegate:controller];
+ 
+     /* if fullscreen mode is to be used */
+@@ -2145,11 +2507,63 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
      dcl.con = qemu_console_lookup_default();
      kbd = qkbd_state_init(dcl.con);
  
@@ -777,7 +796,7 @@ index 23b7a736d7..f23e87e358 100644
 +                exit(1);
 +            }
 +            dispatch_sync(dispatch_get_main_queue(), ^{
-+                CALayer *layer = [[appController cocoaView] layer];
++                CALayer *layer = [[controller cocoaView] layer];
 +                egl_surface = qemu_egl_init_surface(view_ctx, layer);
 +            });
 +#else
@@ -813,7 +832,7 @@ index 23b7a736d7..f23e87e358 100644
  
      qemu_event_init(&cbevent, false);
      cbowner = [[QemuCocoaPasteboardTypeOwner alloc] init];
-@@ -2166,6 +2579,7 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
+@@ -2166,6 +2580,7 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
  
  static QemuDisplay qemu_display_cocoa = {
      .type       = DISPLAY_TYPE_COCOA,
@@ -821,7 +840,7 @@ index 23b7a736d7..f23e87e358 100644
      .init       = cocoa_display_init,
  };
  
-@@ -2175,3 +2589,7 @@ static void register_cocoa(void)
+@@ -2175,3 +2590,7 @@ static void register_cocoa(void)
  }
  
  type_init(register_cocoa);
