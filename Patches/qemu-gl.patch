@@ -1,21 +1,22 @@
-From 878d4f1c913ba7c56f090a79098440d60ce0ba52 Mon Sep 17 00:00:00 2001
+From 119eb49145d145f45bc57b752be20e5bba78cf20 Mon Sep 17 00:00:00 2001
 From: Valerio Volpi <valerio.volpi@quantabrain.org>
 Date: Wed, 19 Mar 2025 11:48:38 +0100
 Subject: [PATCH] Cocoa GL debug
 
 ---
  include/ui/cocoa.h       | 127 ++++++
+ include/ui/console.h     |   3 +
  include/ui/egl-helpers.h |   4 +-
  include/ui/gtk.h         |  54 +--
  qemu-options.hx          |  20 +
  system/vl.c              |   4 +-
- ui/cocoa.m               | 427 ++++++++++++++++++-
+ ui/cocoa.m               | 430 ++++++++++++++++++-
  ui/cocoa/main.m          | 872 +++++++++++++++++++++++++++++++++++++++
  ui/egl-helpers.c         | 140 ++++---
  ui/gtk-egl.c             |   2 +-
  ui/meson.build           |   3 +-
  ui/shader.c              |  14 +-
- 11 files changed, 1556 insertions(+), 111 deletions(-)
+ 12 files changed, 1562 insertions(+), 111 deletions(-)
  create mode 100644 include/ui/cocoa.h
  create mode 100644 ui/cocoa/main.m
 
@@ -152,6 +153,20 @@ index 0000000000..12ccc97e6f
 +@end
 +
 +#endif
+diff --git a/include/ui/console.h b/include/ui/console.h
+index 46b3128185..7532a607bc 100644
+--- a/include/ui/console.h
++++ b/include/ui/console.h
+@@ -294,6 +294,9 @@ typedef struct DisplayGLCtxOps {
+                                       int x, int y, int w, int h);
+ } DisplayGLCtxOps;
+ 
++typedef uint32_t (* DisplayGLTextureBorrower)(uint32_t id, bool *y_0_top,
++                                              uint32_t *width, uint32_t *height);
++
+ struct DisplayGLCtx {
+     const DisplayGLCtxOps *ops;
+ #ifdef CONFIG_OPENGL
 diff --git a/include/ui/egl-helpers.h b/include/ui/egl-helpers.h
 index 4b8c0d2281..d38892ff05 100644
 --- a/include/ui/egl-helpers.h
@@ -321,7 +336,7 @@ index ec93988a03..3fcd6fa0e7 100644
          error_report("OpenGL support was not enabled in this build of QEMU");
  #endif
 diff --git a/ui/cocoa.m b/ui/cocoa.m
-index 23b7a736d7..4a1908b157 100644
+index 23b7a736d7..f23e87e358 100644
 --- a/ui/cocoa.m
 +++ b/ui/cocoa.m
 @@ -11,7 +11,7 @@
@@ -333,18 +348,28 @@ index 23b7a736d7..4a1908b157 100644
   *
   * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
   * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-@@ -51,6 +51,10 @@
+@@ -51,6 +51,11 @@
  #include <Carbon/Carbon.h>
  #include "hw/core/cpu.h"
  
 +#ifdef CONFIG_EGL
++#include "ui/egl-helpers.h"
 +#include "ui/egl-context.h"
 +#endif
 +
  #ifndef MAC_OS_VERSION_14_0
  #define MAC_OS_VERSION_14_0 140000
  #endif
-@@ -111,6 +115,29 @@ static void cocoa_switch(DisplayChangeListener *dcl,
+@@ -93,6 +98,8 @@ static void cocoa_switch(DisplayChangeListener *dcl,
+     .dpy_mouse_set = cocoa_mouse_set,
+     .dpy_cursor_define = cocoa_cursor_define,
+ };
++static QEMUScreen screen;
++static QemuCocoaAppController *appController;
+ static DisplayChangeListener dcl = {
+     .ops = &dcl_ops,
+ };
+@@ -111,6 +118,29 @@ static void cocoa_switch(DisplayChangeListener *dcl,
  static QemuEvent cbevent;
  static QemuCocoaPasteboardTypeOwner *cbowner;
  
@@ -374,7 +399,7 @@ index 23b7a736d7..4a1908b157 100644
  // Utility functions to run specified code block with the BQL held
  typedef void (^CodeBlock)(void);
  typedef bool (^BoolCodeBlock)(void);
-@@ -517,6 +544,12 @@ - (void) drawRect:(NSRect) rect
+@@ -517,6 +547,12 @@ - (void) drawRect:(NSRect) rect
  {
      COCOA_DEBUG("QemuCocoaView: drawRect\n");
  
@@ -387,7 +412,7 @@ index 23b7a736d7..4a1908b157 100644
      // get CoreGraphic context
      CGContextRef viewContextRef = [[NSGraphicsContext currentContext] CGContext];
  
-@@ -2087,6 +2120,331 @@ static void cocoa_cursor_define(DisplayChangeListener *dcl, QEMUCursor *cursor)
+@@ -2087,6 +2123,331 @@ static void cocoa_cursor_define(DisplayChangeListener *dcl, QEMUCursor *cursor)
      });
  }
  
@@ -719,7 +744,7 @@ index 23b7a736d7..4a1908b157 100644
  static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
  {
      NSAutoreleasePool * pool = [[NSAutoreleasePool alloc] init];
-@@ -2145,11 +2503,63 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
+@@ -2145,11 +2506,63 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
      dcl.con = qemu_console_lookup_default();
      kbd = qkbd_state_init(dcl.con);
  
@@ -788,7 +813,7 @@ index 23b7a736d7..4a1908b157 100644
  
      qemu_event_init(&cbevent, false);
      cbowner = [[QemuCocoaPasteboardTypeOwner alloc] init];
-@@ -2166,6 +2576,7 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
+@@ -2166,6 +2579,7 @@ static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
  
  static QemuDisplay qemu_display_cocoa = {
      .type       = DISPLAY_TYPE_COCOA,
@@ -796,7 +821,7 @@ index 23b7a736d7..4a1908b157 100644
      .init       = cocoa_display_init,
  };
  
-@@ -2175,3 +2586,7 @@ static void register_cocoa(void)
+@@ -2175,3 +2589,7 @@ static void register_cocoa(void)
  }
  
  type_init(register_cocoa);
