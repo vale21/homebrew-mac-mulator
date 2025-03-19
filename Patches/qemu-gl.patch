@@ -1,4 +1,4 @@
-From 8c3b4771f5235645763a7696c91fd1d8ad819f3e Mon Sep 17 00:00:00 2001
+From 1589b98867c1b7963f33c1ed9fe2e67f53907f8b Mon Sep 17 00:00:00 2001
 From: Valerio Volpi <valerio.volpi@quantabrain.org>
 Date: Wed, 19 Mar 2025 11:48:38 +0100
 Subject: [PATCH] Cocoa GL debug
@@ -10,13 +10,13 @@ Subject: [PATCH] Cocoa GL debug
  qemu-options.hx                  |  20 +
  system/vl.c                      |   4 +-
  ui/cocoa/app_controller.m        | 676 +++++++++++++++++++++++
- ui/cocoa/main.m                  | 852 ++++++++++++++++++++++++++++
+ ui/cocoa/main.m                  | 856 ++++++++++++++++++++++++++++
  ui/cocoa/pasteboard_type_owner.m |  75 +++
  ui/cocoa/view.m                  | 921 +++++++++++++++++++++++++++++++
  ui/egl-helpers.c                 | 140 ++---
  ui/gtk-egl.c                     |   2 +-
  ui/shader.c                      |  14 +-
- 12 files changed, 2785 insertions(+), 104 deletions(-)
+ 12 files changed, 2789 insertions(+), 104 deletions(-)
  create mode 100644 include/ui/cocoa.h
  create mode 100644 ui/cocoa/app_controller.m
  create mode 100644 ui/cocoa/main.m
@@ -1008,10 +1008,10 @@ index 0000000000..d79ffd4f7b
 +@end
 diff --git a/ui/cocoa/main.m b/ui/cocoa/main.m
 new file mode 100644
-index 0000000000..072b41d220
+index 0000000000..45d1c36521
 --- /dev/null
 +++ b/ui/cocoa/main.m
-@@ -0,0 +1,852 @@
+@@ -0,0 +1,856 @@
 +/*
 + * QEMU Cocoa CG display driver
 + *
@@ -1755,13 +1755,17 @@ index 0000000000..072b41d220
 +static void cocoa_display_early_init(DisplayOptions *o)
 +{
 +    assert(o->type == DISPLAY_TYPE_COCOA);
-+    // if (o->has_gl && o->gl) {
++    if (o->has_gl && o->gl) {
 +        display_opengl = 1;
-+    // }
++    }
 +}
 +
 +static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
 +{
++    if (o->has_gl && o->gl) {
++        display_opengl = 1;
++    }
++    
 +    COCOA_DEBUG("qemu_cocoa: cocoa_display_init\n");
 +
 +    screen.cursor_show = opts->has_show_cursor && opts->show_cursor;
