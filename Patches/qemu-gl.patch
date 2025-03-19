@@ -1,16 +1,21 @@
-From 64a351183c5b1994b04842e867c8743162854617 Mon Sep 17 00:00:00 2001
+From 6a7ddb3e491771c5c88bc94db53f76dbd299badc Mon Sep 17 00:00:00 2001
 From: Valerio Volpi <valerio.volpi@quantabrain.org>
-Date: Wed, 19 Mar 2025 09:41:11 +0100
-Subject: [PATCH] Adding new cocoa only
+Date: Wed, 19 Mar 2025 10:04:02 +0100
+Subject: [PATCH] Cocoa GL
 
 ---
  include/ui/cocoa.h               | 127 +++++
- qemu-options.hx                  |   3 +
+ include/ui/egl-helpers.h         |   4 +-
+ include/ui/gtk.h                 |  54 +-
+ qemu-options.hx                  |  20 +
  ui/cocoa/app_controller.m        | 676 +++++++++++++++++++++++
  ui/cocoa/main.m                  | 852 ++++++++++++++++++++++++++++
  ui/cocoa/pasteboard_type_owner.m |  75 +++
  ui/cocoa/view.m                  | 921 +++++++++++++++++++++++++++++++
- 6 files changed, 2654 insertions(+)
+ ui/egl-helpers.c                 | 140 ++---
+ ui/gtk-egl.c                     |   2 +-
+ ui/shader.c                      |  14 +-
+ 11 files changed, 2783 insertions(+), 102 deletions(-)
  create mode 100644 include/ui/cocoa.h
  create mode 100644 ui/cocoa/app_controller.m
  create mode 100644 ui/cocoa/main.m
@@ -150,8 +155,123 @@ index 0000000000..12ccc97e6f
 +@end
 +
 +#endif
+diff --git a/include/ui/egl-helpers.h b/include/ui/egl-helpers.h
+index 4b8c0d2281..d38892ff05 100644
+--- a/include/ui/egl-helpers.h
++++ b/include/ui/egl-helpers.h
+@@ -56,7 +56,9 @@ void egl_dmabuf_create_fence(QemuDmaBuf *dmabuf);
+ 
+ #endif
+ 
+-EGLSurface qemu_egl_init_surface_x11(EGLContext ectx, EGLNativeWindowType win);
++EGLSurface qemu_egl_init_surface(EGLContext ectx, EGLNativeWindowType win);
++
++int qemu_egl_init_dpy_cocoa(DisplayGLMode mode);
+ 
+ #if defined(CONFIG_X11) || defined(CONFIG_GBM)
+ 
+diff --git a/include/ui/gtk.h b/include/ui/gtk.h
+index aa3d637029..09f18e3fc5 100644
+--- a/include/ui/gtk.h
++++ b/include/ui/gtk.h
+@@ -21,7 +21,7 @@
+ #include "ui/clipboard.h"
+ #include "ui/console.h"
+ #include "ui/kbd-state.h"
+-#if defined(CONFIG_OPENGL)
++#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
+ #include "ui/egl-helpers.h"
+ #include "ui/egl-context.h"
+ #endif
+@@ -43,7 +43,7 @@ typedef struct VirtualGfxConsole {
+     cairo_surface_t *surface;
+     double scale_x;
+     double scale_y;
+-#if defined(CONFIG_OPENGL)
++#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
+     QemuGLShader *gls;
+     EGLContext ectx;
+     EGLSurface esurface;
+@@ -166,31 +166,25 @@ void gd_egl_update(DisplayChangeListener *dcl,
+ void gd_egl_refresh(DisplayChangeListener *dcl);
+ void gd_egl_switch(DisplayChangeListener *dcl,
+                    DisplaySurface *surface);
+-QEMUGLContext gd_egl_create_context(DisplayGLCtx *dgc,
+-                                    QEMUGLParams *params);
+-void gd_egl_scanout_disable(DisplayChangeListener *dcl);
+-void gd_egl_scanout_texture(DisplayChangeListener *dcl,
++QEMUGLContext gd_egl_create_context(void *dg, QEMUGLParams *params);
++bool gd_egl_scanout_get_enabled(void *dg);
++void gd_egl_scanout_disable(void *dg);
++void gd_egl_scanout_texture(void *dg,
+                             uint32_t backing_id,
+-                            bool backing_y_0_top,
+-                            uint32_t backing_width,
+-                            uint32_t backing_height,
++                            DisplayGLTextureBorrower backing_borrow,
+                             uint32_t x, uint32_t y,
+-                            uint32_t w, uint32_t h,
+-                            void *d3d_tex2d);
+-void gd_egl_scanout_dmabuf(DisplayChangeListener *dcl,
+-                           QemuDmaBuf *dmabuf);
+-void gd_egl_cursor_dmabuf(DisplayChangeListener *dcl,
++                            uint32_t w, uint32_t h);
++void gd_egl_scanout_dmabuf(void *dg, QemuDmaBuf *dmabuf);
++void gd_egl_cursor_dmabuf(void *dg,
+                           QemuDmaBuf *dmabuf, bool have_hot,
+                           uint32_t hot_x, uint32_t hot_y);
+-void gd_egl_cursor_position(DisplayChangeListener *dcl,
+-                            uint32_t pos_x, uint32_t pos_y);
++void gd_egl_cursor_position(void *dg, uint32_t pos_x, uint32_t pos_y);
+ void gd_egl_flush(DisplayChangeListener *dcl,
+                   uint32_t x, uint32_t y, uint32_t w, uint32_t h);
+ void gd_egl_scanout_flush(DisplayChangeListener *dcl,
+                           uint32_t x, uint32_t y, uint32_t w, uint32_t h);
+ void gtk_egl_init(DisplayGLMode mode);
+-int gd_egl_make_current(DisplayGLCtx *dgc,
+-                        QEMUGLContext ctx);
++int gd_egl_make_current(void *dg, QEMUGLContext ctx);
+ 
+ /* ui/gtk-gl-area.c */
+ void gd_gl_area_init(VirtualConsole *vc);
+@@ -200,26 +194,20 @@ void gd_gl_area_update(DisplayChangeListener *dcl,
+ void gd_gl_area_refresh(DisplayChangeListener *dcl);
+ void gd_gl_area_switch(DisplayChangeListener *dcl,
+                        DisplaySurface *surface);
+-QEMUGLContext gd_gl_area_create_context(DisplayGLCtx *dgc,
+-                                        QEMUGLParams *params);
+-void gd_gl_area_destroy_context(DisplayGLCtx *dgc,
+-                                QEMUGLContext ctx);
+-void gd_gl_area_scanout_dmabuf(DisplayChangeListener *dcl,
+-                               QemuDmaBuf *dmabuf);
+-void gd_gl_area_scanout_texture(DisplayChangeListener *dcl,
++QEMUGLContext gd_gl_area_create_context(void *dg, QEMUGLParams *params);
++void gd_gl_area_destroy_context(void *dg, QEMUGLContext ctx);
++bool gd_gl_area_scanout_get_enabled(void *dg);
++void gd_gl_area_scanout_dmabuf(void *dg, QemuDmaBuf *dmabuf);
++void gd_gl_area_scanout_texture(void *dg,
+                                 uint32_t backing_id,
+-                                bool backing_y_0_top,
+-                                uint32_t backing_width,
+-                                uint32_t backing_height,
++                                DisplayGLTextureBorrower backing_borrow,
+                                 uint32_t x, uint32_t y,
+-                                uint32_t w, uint32_t h,
+-                                void *d3d_tex2d);
+-void gd_gl_area_scanout_disable(DisplayChangeListener *dcl);
++                                uint32_t w, uint32_t h);
++void gd_gl_area_scanout_disable(void *dg);
+ void gd_gl_area_scanout_flush(DisplayChangeListener *dcl,
+                               uint32_t x, uint32_t y, uint32_t w, uint32_t h);
+ void gtk_gl_area_init(void);
+-int gd_gl_area_make_current(DisplayGLCtx *dgc,
+-                            QEMUGLContext ctx);
++int gd_gl_area_make_current(void *dg, QEMUGLContext ctx);
+ 
+ /* gtk-clipboard.c */
+ void gd_clipboard_init(GtkDisplayState *gd);
 diff --git a/qemu-options.hx b/qemu-options.hx
-index dc694a99a3..cafa9ef53f 100644
+index dc694a99a3..7c68d1b0e0 100644
 --- a/qemu-options.hx
 +++ b/qemu-options.hx
 @@ -2110,6 +2110,7 @@ DEF("display", HAS_ARG, QEMU_OPTION_display,
@@ -162,15 +282,32 @@ index dc694a99a3..cafa9ef53f 100644
  #endif
  #if defined(CONFIG_OPENGL)
      "-display egl-headless[,rendernode=<file>]\n"
-@@ -2221,6 +2222,8 @@ SRST
-                                   key codes match their position on non-Mac
-                                   keyboards and you can use Meta/Super and Alt
-                                   where you expect them.  (default: off)
-+                            
-+        ``gl=on|off|core|es`` : Use OpenGL for displaying
- 
-         ``show-cursor=on|off`` :  Force showing the mouse cursor
- 
+@@ -2929,6 +2930,25 @@ DEF("netdev", HAS_ARG, QEMU_OPTION_netdev,
+     "                use 'vhostdev=/path/to/dev' to open a vhost vdpa device\n"
+     "                use 'vhostfd=h' to connect to an already opened vhost vdpa device\n"
+ #endif
++#ifdef CONFIG_VMNET
++    "-netdev vmnet-host,id=str[,isolated=on|off][,net-uuid=uuid]\n"
++    "         [,start-address=addr,end-address=addr,subnet-mask=mask]\n"
++    "                configure a vmnet network backend in host mode with ID 'str',\n"
++    "                isolate this interface from others with 'isolated',\n"
++    "                configure the address range and choose a subnet mask,\n"
++    "                specify network UUID 'uuid' to disable DHCP and interact with\n"
++    "                vmnet-host interfaces within this isolated network\n"
++    "-netdev vmnet-shared,id=str[,isolated=on|off][,nat66-prefix=addr]\n"
++    "         [,start-address=addr,end-address=addr,subnet-mask=mask]\n"
++    "                configure a vmnet network backend in shared mode with ID 'str',\n"
++    "                configure the address range and choose a subnet mask,\n"
++    "                set IPv6 ULA prefix (of length 64) to use for internal network,\n"
++    "                isolate this interface from others with 'isolated'\n"
++    "-netdev vmnet-bridged,id=str,ifname=name[,isolated=on|off]\n"
++    "                configure a vmnet network backend in bridged mode with ID 'str',\n"
++    "                use 'ifname=name' to select a physical network interface to be bridged,\n"
++    "                isolate this interface from others with 'isolated'\n"
++#endif
+ #ifdef CONFIG_VMNET
+     "-netdev vmnet-host,id=str[,isolated=on|off][,net-uuid=uuid]\n"
+     "         [,start-address=addr,end-address=addr,subnet-mask=mask]\n"
 diff --git a/ui/cocoa/app_controller.m b/ui/cocoa/app_controller.m
 new file mode 100644
 index 0000000000..d79ffd4f7b
@@ -2719,6 +2856,237 @@ index 0000000000..8beb963cbd
 +    [pauseLabel removeFromSuperview];
 +}
 +@end
+diff --git a/ui/egl-helpers.c b/ui/egl-helpers.c
+index d591159480..2afb085f69 100644
+--- a/ui/egl-helpers.c
++++ b/ui/egl-helpers.c
+@@ -405,7 +405,7 @@ void egl_dmabuf_create_fence(QemuDmaBuf *dmabuf)
+ 
+ /* ---------------------------------------------------------------------- */
+ 
+-EGLSurface qemu_egl_init_surface_x11(EGLContext ectx, EGLNativeWindowType win)
++EGLSurface qemu_egl_init_surface(EGLContext ectx, EGLNativeWindowType win)
+ {
+     EGLSurface esurface;
+     EGLBoolean b;
+@@ -429,7 +429,71 @@ EGLSurface qemu_egl_init_surface_x11(EGLContext ectx, EGLNativeWindowType win)
+ 
+ /* ---------------------------------------------------------------------- */
+ 
+-#if defined(CONFIG_X11) || defined(CONFIG_GBM) || defined(WIN32)
++static int qemu_egl_init_dpy(EGLDisplay dpy, DisplayGLMode mode)
++{
++    static const EGLint conf_att_core[] = {
++        EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
++        EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT,
++        EGL_RED_SIZE,   5,
++        EGL_GREEN_SIZE, 5,
++        EGL_BLUE_SIZE,  5,
++        EGL_ALPHA_SIZE, 0,
++        EGL_NONE,
++    };
++    static const EGLint conf_att_gles[] = {
++        EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
++        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
++        EGL_RED_SIZE,   5,
++        EGL_GREEN_SIZE, 5,
++        EGL_BLUE_SIZE,  5,
++        EGL_ALPHA_SIZE, 0,
++        EGL_NONE,
++    };
++    EGLint major, minor;
++    EGLBoolean b;
++    EGLint n;
++    bool gles = (mode == DISPLAY_GL_MODE_ES);
++
++    qemu_egl_display = dpy;
++
++    b = eglInitialize(qemu_egl_display, &major, &minor);
++    if (b == EGL_FALSE) {
++        error_report("egl: eglInitialize failed");
++        return -1;
++    }
++
++    b = eglBindAPI(gles ?  EGL_OPENGL_ES_API : EGL_OPENGL_API);
++    if (b == EGL_FALSE) {
++        error_report("egl: eglBindAPI failed (%s mode)",
++                     gles ? "gles" : "core");
++        return -1;
++    }
++
++    b = eglChooseConfig(qemu_egl_display,
++                        gles ? conf_att_gles : conf_att_core,
++                        &qemu_egl_config, 1, &n);
++    if (b == EGL_FALSE || n != 1) {
++        error_report("egl: eglChooseConfig failed (%s mode)",
++                     gles ? "gles" : "core");
++        return -1;
++    }
++
++    qemu_egl_mode = gles ? DISPLAY_GL_MODE_ES : DISPLAY_GL_MODE_CORE;
++    return 0;
++}
++
++int qemu_egl_init_dpy_cocoa(DisplayGLMode mode)
++{
++    EGLDisplay dpy = eglGetDisplay(EGL_DEFAULT_DISPLAY);
++    if (dpy == EGL_NO_DISPLAY) {
++        error_report("egl: eglGetDisplay failed");
++        return -1;
++    }
++
++    return qemu_egl_init_dpy(dpy, mode);
++}
++
++#if defined(CONFIG_X11) || defined(CONFIG_GBM)
+ 
+ /*
+  * Taken from glamor_egl.h from the Xorg xserver, which is MIT licensed
+@@ -459,8 +523,9 @@ EGLSurface qemu_egl_init_surface_x11(EGLContext ectx, EGLNativeWindowType win)
+  * platform extensions (EGL_KHR_platform_gbm and friends) yet it doesn't seem
+  * like mesa will be able to advertise these (even though it can do EGL 1.5).
+  */
+-static EGLDisplay qemu_egl_get_display(EGLNativeDisplayType native,
+-                                       EGLenum platform)
++static int qemu_egl_init_dpy_platform(EGLNativeDisplayType native,
++                                      EGLenum platform,
++                                      DisplayGLMode mode)
+ {
+     EGLDisplay dpy = EGL_NO_DISPLAY;
+ 
+@@ -475,66 +540,13 @@ static EGLDisplay qemu_egl_get_display(EGLNativeDisplayType native,
+         /* fallback */
+         dpy = eglGetDisplay(native);
+     }
+-    return dpy;
+-}
+-
+-static int qemu_egl_init_dpy(EGLNativeDisplayType dpy,
+-                             EGLenum platform,
+-                             DisplayGLMode mode)
+-{
+-    static const EGLint conf_att_core[] = {
+-        EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+-        EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT,
+-        EGL_RED_SIZE,   5,
+-        EGL_GREEN_SIZE, 5,
+-        EGL_BLUE_SIZE,  5,
+-        EGL_ALPHA_SIZE, 0,
+-        EGL_NONE,
+-    };
+-    static const EGLint conf_att_gles[] = {
+-        EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+-        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+-        EGL_RED_SIZE,   5,
+-        EGL_GREEN_SIZE, 5,
+-        EGL_BLUE_SIZE,  5,
+-        EGL_ALPHA_SIZE, 0,
+-        EGL_NONE,
+-    };
+-    EGLint major, minor;
+-    EGLBoolean b;
+-    EGLint n;
+-    bool gles = (mode == DISPLAY_GL_MODE_ES);
+-
+-    qemu_egl_display = qemu_egl_get_display(dpy, platform);
+-    if (qemu_egl_display == EGL_NO_DISPLAY) {
+-        error_report("egl: eglGetDisplay failed: %s", qemu_egl_get_error_string());
+-        return -1;
+-    }
+-
+-    b = eglInitialize(qemu_egl_display, &major, &minor);
+-    if (b == EGL_FALSE) {
+-        error_report("egl: eglInitialize failed: %s", qemu_egl_get_error_string());
+-        return -1;
+-    }
+ 
+-    b = eglBindAPI(gles ?  EGL_OPENGL_ES_API : EGL_OPENGL_API);
+-    if (b == EGL_FALSE) {
+-        error_report("egl: eglBindAPI failed (%s mode): %s",
+-                     gles ? "gles" : "core", qemu_egl_get_error_string());
+-        return -1;
+-    }
+-
+-    b = eglChooseConfig(qemu_egl_display,
+-                        gles ? conf_att_gles : conf_att_core,
+-                        &qemu_egl_config, 1, &n);
+-    if (b == EGL_FALSE || n != 1) {
+-        error_report("egl: eglChooseConfig failed (%s mode): %s",
+-                     gles ? "gles" : "core", qemu_egl_get_error_string());
++    if (dpy == EGL_NO_DISPLAY) {
++        error_report("egl: eglGetDisplay failed");
+         return -1;
+     }
+ 
+-    qemu_egl_mode = gles ? DISPLAY_GL_MODE_ES : DISPLAY_GL_MODE_CORE;
+-    return 0;
++    return qemu_egl_init_dpy(dpy, mode);
+ }
+ 
+ #endif
+@@ -543,18 +555,18 @@ static int qemu_egl_init_dpy(EGLNativeDisplayType dpy,
+ int qemu_egl_init_dpy_x11(EGLNativeDisplayType dpy, DisplayGLMode mode)
+ {
+ #ifdef EGL_KHR_platform_x11
+-    return qemu_egl_init_dpy(dpy, EGL_PLATFORM_X11_KHR, mode);
++    return qemu_egl_init_dpy_platform(dpy, EGL_PLATFORM_X11_KHR, mode);
+ #else
+-    return qemu_egl_init_dpy(dpy, 0, mode);
++    return qemu_egl_init_dpy_platform(dpy, 0, mode);
+ #endif
+ }
+ 
+ int qemu_egl_init_dpy_mesa(EGLNativeDisplayType dpy, DisplayGLMode mode)
+ {
+ #ifdef EGL_MESA_platform_gbm
+-    return qemu_egl_init_dpy(dpy, EGL_PLATFORM_GBM_MESA, mode);
++    return qemu_egl_init_dpy_platform(dpy, EGL_PLATFORM_GBM_MESA, mode);
+ #else
+-    return qemu_egl_init_dpy(dpy, 0, mode);
++    return qemu_egl_init_dpy_platform(dpy, 0, mode);
+ #endif
+ }
+ #endif
+diff --git a/ui/gtk-egl.c b/ui/gtk-egl.c
+index f7a428c86a..a47721dbee 100644
+--- a/ui/gtk-egl.c
++++ b/ui/gtk-egl.c
+@@ -57,7 +57,7 @@ void gd_egl_init(VirtualConsole *vc)
+     }
+ 
+     vc->gfx.ectx = qemu_egl_init_ctx();
+-    vc->gfx.esurface = qemu_egl_init_surface_x11
++    vc->gfx.esurface = qemu_egl_init_surface
+         (vc->gfx.ectx, (EGLNativeWindowType)x11_window);
+ 
+     assert(vc->gfx.esurface);
+diff --git a/ui/shader.c b/ui/shader.c
+index ab448c41d4..c5c9f754cc 100644
+--- a/ui/shader.c
++++ b/ui/shader.c
+@@ -152,11 +152,19 @@ end:
+ QemuGLShader *qemu_gl_init_shader(void)
+ {
+     QemuGLShader *gls = g_new0(QemuGLShader, 1);
+-
++    const char *header = epoxy_is_desktop_gl() ? "#version 140\n" : "#version 300 es\n";
++    char vert_src[256];
++    char frag_src[256];
++    char *vert_src_body = stpcpy(vert_src, header);
++    char *frag_src_body = stpcpy(frag_src, header);
++
++    strcpy(vert_src_body, texture_blit_vert_src);
++    strcpy(frag_src_body, texture_blit_frag_src);
+     gls->texture_blit_prog = qemu_gl_create_compile_link_program
+-        (texture_blit_vert_src, texture_blit_frag_src);
++        (vert_src, frag_src);
++    strcpy(vert_src_body, texture_blit_flip_vert_src);
+     gls->texture_blit_flip_prog = qemu_gl_create_compile_link_program
+-        (texture_blit_flip_vert_src, texture_blit_frag_src);
++        (vert_src, frag_src);
+     if (!gls->texture_blit_prog || !gls->texture_blit_flip_prog) {
+         exit(1);
+     }
 -- 
 2.39.5 (Apple Git-154)
 
