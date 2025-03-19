@@ -1,4 +1,4 @@
-From 3df37c2e2bc35133a1cdd0be66b49e3b2cd2a7e0 Mon Sep 17 00:00:00 2001
+From 409afd8b08330234f787091213e1d81af2869b85 Mon Sep 17 00:00:00 2001
 From: Valerio Volpi <valerio.volpi@quantabrain.org>
 Date: Wed, 19 Mar 2025 11:48:38 +0100
 Subject: [PATCH] Cocoa GL debug
@@ -327,7 +327,7 @@ index ec93988a03..3fcd6fa0e7 100644
  #endif
 diff --git a/ui/cocoa/app_controller.m b/ui/cocoa/app_controller.m
 new file mode 100644
-index 0000000000..d79ffd4f7b
+index 0000000000..4be3df68d5
 --- /dev/null
 +++ b/ui/cocoa/app_controller.m
 @@ -0,0 +1,676 @@
@@ -391,11 +391,11 @@ index 0000000000..d79ffd4f7b
 +{
 +    bool locked = qemu_mutex_iothread_locked();
 +    if (!locked) {
-+        qemu_mutex_lock_iothread();
++        bql_lock();
 +    }
 +    block();
 +    if (!locked) {
-+        qemu_mutex_unlock_iothread();
++        bql_lock();
 +    }
 +}
 +
@@ -1867,7 +1867,7 @@ index 0000000000..db1529c554
 +#endif
 diff --git a/ui/cocoa/pasteboard_type_owner.m b/ui/cocoa/pasteboard_type_owner.m
 new file mode 100644
-index 0000000000..1dd1e987d7
+index 0000000000..c7583be972
 --- /dev/null
 +++ b/ui/cocoa/pasteboard_type_owner.m
 @@ -0,0 +1,75 @@
@@ -1919,7 +1919,7 @@ index 0000000000..1dd1e987d7
 +        return;
 +    }
 +
-+    qemu_mutex_lock_iothread();
++    bql_lock();
 +
 +    QemuClipboardInfo *info = qemu_clipboard_info_ref(cb->info);
 +    qemu_event_reset(&cb->event);
@@ -1928,9 +1928,9 @@ index 0000000000..1dd1e987d7
 +    while (info == cb->info &&
 +           info->types[QEMU_CLIPBOARD_TYPE_TEXT].available &&
 +           info->types[QEMU_CLIPBOARD_TYPE_TEXT].data == NULL) {
-+        qemu_mutex_unlock_iothread();
++        bql_unlock();
 +        qemu_event_wait(&cb->event);
-+        qemu_mutex_lock_iothread();
++        bql_lock();
 +    }
 +
 +    if (info == cb->info) {
@@ -1942,13 +1942,13 @@ index 0000000000..1dd1e987d7
 +
 +    qemu_clipboard_info_unref(info);
 +
-+    qemu_mutex_unlock_iothread();
++    bql_unlock();
 +}
 +
 +@end
 diff --git a/ui/cocoa/view.m b/ui/cocoa/view.m
 new file mode 100644
-index 0000000000..8beb963cbd
+index 0000000000..09375603fd
 --- /dev/null
 +++ b/ui/cocoa/view.m
 @@ -0,0 +1,921 @@
@@ -2447,9 +2447,9 @@ index 0000000000..8beb963cbd
 +        return false;
 +    }
 +
-+    qemu_mutex_lock_iothread();
++    bql_lock();
 +    bool handled = [self handleEventLocked:event];
-+    qemu_mutex_unlock_iothread();
++    bql_unlock();
 +    return handled;
 +}
 +
@@ -2688,7 +2688,7 @@ index 0000000000..8beb963cbd
 +        return;
 +    }
 +
-+    qemu_mutex_lock_iothread();
++    bql_lock();
 +
 +    if (isAbsoluteEnabled) {
 +        CGFloat d = (CGFloat)screen_height / [self frame].size.height;
@@ -2704,7 +2704,7 @@ index 0000000000..8beb963cbd
 +
 +    qemu_input_event_sync();
 +
-+    qemu_mutex_unlock_iothread();
++    bql_unlock();
 +}
 +
 +- (void) handleMouseEvent:(NSEvent *)event button:(InputButton)button down:(bool)down
@@ -2713,9 +2713,9 @@ index 0000000000..8beb963cbd
 +        return;
 +    }
 +
-+    qemu_mutex_lock_iothread();
++    bql_lock();
 +    qemu_input_queue_btn(screen->dcl.con, button, down);
-+    qemu_mutex_unlock_iothread();
++    bql_unlock();
 +
 +    [self handleMouseEvent:event];
 +}
@@ -2803,9 +2803,9 @@ index 0000000000..8beb963cbd
 +
 +- (void) ungrabMouse
 +{
-+    qemu_mutex_lock_iothread();
++    bql_lock();
 +    [self ungrabMouseLocked];
-+    qemu_mutex_unlock_iothread();
++    bql_unlock();
 +}
 +
 +- (void) ungrabMouseLocked
