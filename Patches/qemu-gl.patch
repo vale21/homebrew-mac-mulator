@@ -1,4 +1,4 @@
-From e84cbc1270eaa562d33368ba34c8fc3516ddbdb7 Mon Sep 17 00:00:00 2001
+From e21f523c9e109100b64e0b43d609568676ff0681 Mon Sep 17 00:00:00 2001
 From: Valerio Volpi <valerio.volpi@quantabrain.org>
 Date: Wed, 19 Mar 2025 17:50:46 +0100
 Subject: [PATCH] Using custom Cocoa code
@@ -12,14 +12,14 @@ Subject: [PATCH] Using custom Cocoa code
  system/vl.c                      |    4 +-
  ui/cocoa.m                       | 2177 ------------------------------
  ui/cocoa/app_controller.m        |  688 ++++++++++
- ui/cocoa/main.m                  | 1004 ++++++++++++++
+ ui/cocoa/main.m                  |  873 ++++++++++++
  ui/cocoa/pasteboard_type_owner.m |   75 +
- ui/cocoa/view.m                  |  946 +++++++++++++
+ ui/cocoa/view.m                  |  921 +++++++++++++
  ui/egl-helpers.c                 |  140 +-
  ui/gtk-egl.c                     |    2 +-
  ui/meson.build                   |    4 +-
  ui/shader.c                      |   14 +-
- 15 files changed, 3007 insertions(+), 2282 deletions(-)
+ 15 files changed, 2851 insertions(+), 2282 deletions(-)
  create mode 100644 include/ui/cocoa.h
  delete mode 100644 ui/cocoa.m
  create mode 100644 ui/cocoa/app_controller.m
@@ -3248,10 +3248,10 @@ index 0000000000..08e5ad34d2
 +@end
 diff --git a/ui/cocoa/main.m b/ui/cocoa/main.m
 new file mode 100644
-index 0000000000..0c56f1eb53
+index 0000000000..20424bad36
 --- /dev/null
 +++ b/ui/cocoa/main.m
-@@ -0,0 +1,1004 @@
+@@ -0,0 +1,873 @@
 +/*
 + * QEMU Cocoa CG display driver
 + *
@@ -4023,61 +4023,28 @@ index 0000000000..0c56f1eb53
 +
 +static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
 +{
-+    NSAutoreleasePool * pool = [[NSAutoreleasePool alloc] init];
-+
 +    COCOA_DEBUG("qemu_cocoa: cocoa_display_init\n");
 +
-+    // Pull this console process up to being a fully-fledged graphical
-+    // app with a menubar and Dock icon
-+    ProcessSerialNumber psn = { 0, kCurrentProcess };
-+    TransformProcessType(&psn, kProcessTransformToForegroundApplication);
++    screen.cursor_show = opts->has_show_cursor && opts->show_cursor;
++    screen.swap_option_command = opts->u.cocoa.has_swap_option_command &&
++        opts->u.cocoa.swap_option_command;
 +
-+    [QemuApplication sharedApplication];
-+
-+    // Create an Application controller
-+    QemuCocoaAppController *controller = [[QemuCocoaAppController alloc] init];
-+    [NSApp setDelegate:controller];
++    /* Tell main thread to go ahead and create the app and enter the run loop */
++    qemu_sem_post(&display_init_sem);
++    qemu_sem_wait(&app_started_sem);
++    COCOA_DEBUG("cocoa_display_init: app start completed\n");
 +
 +    /* if fullscreen mode is to be used */
 +    if (opts->has_full_screen && opts->full_screen) {
-+        [[cocoaView window] toggleFullScreen: nil];
++        dispatch_async(dispatch_get_main_queue(), ^{
++            [[[appController cocoaView] window] toggleFullScreen: nil];
++        });
 +    }
 +    if (opts->u.cocoa.has_full_grab && opts->u.cocoa.full_grab) {
-+        [controller setFullGrab: nil];
++        dispatch_async(dispatch_get_main_queue(), ^{
++            [[appController cocoaView] setFullGrab: nil];
++        });
 +    }
-+
-+    if (opts->has_show_cursor && opts->show_cursor) {
-+        cursor_hide = 0;
-+    }
-+    if (opts->u.cocoa.has_swap_opt_cmd) {
-+        swap_opt_cmd = opts->u.cocoa.swap_opt_cmd;
-+    }
-+
-+    if (opts->u.cocoa.has_left_command_key && !opts->u.cocoa.left_command_key) {
-+        left_command_key_enabled = 0;
-+    }
-+
-+    if (opts->u.cocoa.has_zoom_to_fit && opts->u.cocoa.zoom_to_fit) {
-+        [cocoaView window].styleMask |= NSWindowStyleMaskResizable;
-+    }
-+
-+    if (opts->u.cocoa.has_zoom_interpolation && opts->u.cocoa.zoom_interpolation) {
-+        zoom_interpolation = kCGInterpolationLow;
-+    }
-+
-+    create_initial_menus();
-+    /*
-+     * Create the menu entries which depend on QEMU state (for consoles
-+     * and removable devices). These make calls back into QEMU functions,
-+     * which is OK because at this point we know that the second thread
-+     * holds the BQL and is synchronously waiting for us to
-+     * finish.
-+     */
-+    add_console_menu_entries();
-+    addRemovableDevicesMenuItems();
-+
-+    dcl.con = qemu_console_lookup_default();
-+    kbd = qkbd_state_init(dcl.con);
 +
 +    if (display_opengl) {
 +#ifdef CONFIG_OPENGL
@@ -4090,8 +4057,7 @@ index 0000000000..0c56f1eb53
 +
 +        for (unsigned int index = 0; index < console_count; index++) {
 +            QemuConsole *con = qemu_console_lookup_by_index(index);
-+            //console_set_displayglcontext(con, dgs + index);
-+            con->dg = dgs + index
++            console_set_displayglcontext(con, dgs + index);
 +        }
 +
 +        if (opts->gl == DISPLAY_GL_MODE_ES) {
@@ -4123,122 +4089,25 @@ index 0000000000..0c56f1eb53
 +        glGenTextures(1, &cursor_texture);
 +
 +        // register vga output callbacks
-+        register_displaychangelistener(&dcl);
-+        qemu_add_mouse_mode_change_notifier(&mouse_mode_change_notifier);
-+        [cocoaView notifyMouseModeChange];
-+        [cocoaView updateUIInfo];
++        screen.dcl.ops = &dcl_gl_ops;
++
++        register_displayglops(&dg_ops);
 +#else
 +        error_report("OpenGL is not enabled - exiting");
 +        exit(1);
 +#endif
 +    } else {
 +        // register vga output callbacks
-+        register_displaychangelistener(&dcl);
-+        qemu_add_mouse_mode_change_notifier(&mouse_mode_change_notifier);
-+        [cocoaView notifyMouseModeChange];
-+        [cocoaView updateUIInfo];
++        screen.dcl.ops = &dcl_ops;
 +    }
 +
-+    qemu_event_init(&cbevent, false);
-+    cbowner = [[QemuCocoaPasteboardTypeOwner alloc] init];
++    register_displaychangelistener(&screen.dcl);
++    qatomic_store_release(&screen.inited, true);
++
++    qemu_event_init(&qemucb.event, false);
++    cbowner = [[QemuCocoaPasteboardTypeOwner alloc] initWith:&qemucb];
 +    qemu_clipboard_peer_register(&cbpeer);
-+
-+    [pool release];
-+
-+    /*
-+     * The Cocoa UI will run the NSApplication runloop on the main thread
-+     * rather than the default Core Foundation one.
-+     */
-+    qemu_main = cocoa_main;
 +}
-+
-+// static void cocoa_display_init(DisplayState *ds, DisplayOptions *opts)
-+// {
-+//     COCOA_DEBUG("qemu_cocoa: cocoa_display_init\n");
-+
-+//     screen.cursor_show = opts->has_show_cursor && opts->show_cursor;
-+//     screen.swap_option_command = opts->u.cocoa.has_swap_option_command &&
-+//         opts->u.cocoa.swap_option_command;
-+
-+//     /* Tell main thread to go ahead and create the app and enter the run loop */
-+//     qemu_sem_post(&display_init_sem);
-+//     qemu_sem_wait(&app_started_sem);
-+//     COCOA_DEBUG("cocoa_display_init: app start completed\n");
-+
-+//     /* if fullscreen mode is to be used */
-+//     if (opts->has_full_screen && opts->full_screen) {
-+//         dispatch_async(dispatch_get_main_queue(), ^{
-+//             [[[appController cocoaView] window] toggleFullScreen: nil];
-+//         });
-+//     }
-+//     if (opts->u.cocoa.has_full_grab && opts->u.cocoa.full_grab) {
-+//         dispatch_async(dispatch_get_main_queue(), ^{
-+//             [[appController cocoaView] setFullGrab: nil];
-+//         });
-+//     }
-+
-+//     if (display_opengl) {
-+// #ifdef CONFIG_OPENGL
-+//         unsigned int console_count = 0;
-+//         while (qemu_console_lookup_by_index(console_count)) {
-+//             console_count++;
-+//         }
-+
-+//         dgs = g_new0(DisplayGL, console_count);
-+
-+//         for (unsigned int index = 0; index < console_count; index++) {
-+//             QemuConsole *con = qemu_console_lookup_by_index(index);
-+//             console_set_displayglcontext(con, dgs + index);
-+//         }
-+
-+//         if (opts->gl == DISPLAY_GL_MODE_ES) {
-+// #ifdef CONFIG_EGL
-+//             if (qemu_egl_init_dpy_cocoa(DISPLAY_GL_MODE_ES)) {
-+//                 exit(1);
-+//             }
-+//             view_ctx = qemu_egl_init_ctx();
-+//             if (!view_ctx) {
-+//                 exit(1);
-+//             }
-+//             dispatch_sync(dispatch_get_main_queue(), ^{
-+//                 CALayer *layer = [[appController cocoaView] layer];
-+//                 egl_surface = qemu_egl_init_surface(view_ctx, layer);
-+//             });
-+// #else
-+//             error_report("OpenGLES without EGL is not supported - exiting");
-+//             exit(1);
-+// #endif
-+//         } else {
-+//             view_ctx = cocoa_gl_create_context_ns(nil, 32);
-+// #ifdef CONFIG_EGL
-+//             egl_surface = EGL_NO_SURFACE;
-+// #endif
-+//             cocoa_gl_make_context_current(NULL, view_ctx);
-+//         }
-+
-+//         gls = qemu_gl_init_shader();
-+//         glGenTextures(1, &cursor_texture);
-+
-+//         // register vga output callbacks
-+//         screen.dcl.ops = &dcl_gl_ops;
-+
-+//         register_displayglops(&dg_ops);
-+// #else
-+//         error_report("OpenGL is not enabled - exiting");
-+//         exit(1);
-+// #endif
-+//     } else {
-+//         // register vga output callbacks
-+//         screen.dcl.ops = &dcl_ops;
-+//     }
-+
-+//     register_displaychangelistener(&screen.dcl);
-+//     qatomic_store_release(&screen.inited, true);
-+
-+//     qemu_event_init(&qemucb.event, false);
-+//     cbowner = [[QemuCocoaPasteboardTypeOwner alloc] initWith:&qemucb];
-+//     qemu_clipboard_peer_register(&cbpeer);
-+// }
 +
 +static QemuDisplay qemu_display_cocoa = {
 +    .type       = DISPLAY_TYPE_COCOA,
@@ -4339,10 +4208,10 @@ index 0000000000..c7583be972
 +@end
 diff --git a/ui/cocoa/view.m b/ui/cocoa/view.m
 new file mode 100644
-index 0000000000..e1c85e8159
+index 0000000000..b7b353054f
 --- /dev/null
 +++ b/ui/cocoa/view.m
-@@ -0,0 +1,946 @@
+@@ -0,0 +1,921 @@
 +/*
 + * QEMU Cocoa CG display driver
 + *
@@ -4669,16 +4538,12 @@ index 0000000000..e1c85e8159
 +    }
 +}
 +
-+#pragma clang diagnostic push
-+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-+
-+- (void) updateUIInfoLocked
++- (void) updateUIInfo
 +{
-+    /* Must be called with the BQL, i.e. via updateUIInfo */
 +    NSSize frameSize;
-+    QemuUIInfo info;
++    QemuUIInfo info = {};
 +
-+    if (!qemu_console_is_graphic(dcl.con)) {
++    if (!qatomic_load_acquire(&screen->inited)) {
 +        return;
 +    }
 +
@@ -4687,16 +4552,19 @@ index 0000000000..e1c85e8159
 +        CGDirectDisplayID display = [[description objectForKey:@"NSScreenNumber"] unsignedIntValue];
 +        NSSize screenSize = [[[self window] screen] frame].size;
 +        CGSize screenPhysicalSize = CGDisplayScreenSize(display);
-+        bool isFullscreen = ([[self window] styleMask] & NSWindowStyleMaskFullScreen) != 0;
 +        CVDisplayLinkRef displayLink;
 +
-+        frameSize = isFullscreen ? [self screenSafeAreaSize] : [self frame].size;
++        if (([[self window] styleMask] & NSWindowStyleMaskFullScreen) == 0) {
++            frameSize = [self frame].size;
++        } else {
++            frameSize = screenSize;
++        }
 +
 +        if (!CVDisplayLinkCreateWithCGDisplay(display, &displayLink)) {
 +            CVTime period = CVDisplayLinkGetNominalOutputVideoRefreshPeriod(displayLink);
 +            CVDisplayLinkRelease(displayLink);
 +            if (!(period.flags & kCVTimeIsIndefinite)) {
-+                update_displaychangelistener(&dcl,
++                update_displaychangelistener(&screen->dcl,
 +                                             1000 * period.timeValue / period.timeScale);
 +                info.refresh_rate = (int64_t)1000 * period.timeScale / period.timeValue;
 +            }
@@ -4706,37 +4574,14 @@ index 0000000000..e1c85e8159
 +        info.height_mm = frameSize.height / screenSize.height * screenPhysicalSize.height;
 +    } else {
 +        frameSize = [self frame].size;
-+        info.width_mm = 0;
-+        info.height_mm = 0;
 +    }
 +
-+    info.xoff = 0;
-+    info.yoff = 0;
-+    info.width = frameSize.width;
-+    info.height = frameSize.height;
++    NSSize frameBackingSize = [self convertSizeToBacking:frameSize];
 +
-+    dpy_set_ui_info(dcl.con, &info, TRUE);
-+}
++    info.width = frameBackingSize.width;
++    info.height = frameBackingSize.height;
 +
-+#pragma clang diagnostic pop
-+
-+- (void) updateUIInfo
-+{
-+    if (!allow_events) {
-+        /*
-+         * Don't try to tell QEMU about UI information in the application
-+         * startup phase -- we haven't yet registered dcl with the QEMU UI
-+         * layer.
-+         * When cocoa_display_init() does register the dcl, the UI layer
-+         * will call cocoa_switch(), which will call updateUIInfo, so
-+         * we don't lose any information here.
-+         */
-+        return;
-+    }
-+
-+    with_bql(^{
-+        [self updateUIInfoLocked];
-+    });
++    dpy_set_ui_info(screen->dcl.con, &info);
 +}
 +
 +- (void) updateScreenWidth:(int)w height:(int)h
@@ -4845,8 +4690,7 @@ index 0000000000..e1c85e8159
 +    }
 +
 +    if (keysym) {
-+        QemuTextConsole *con = QEMU_TEXT_CONSOLE(dcl.con);
-+        qemu_text_console_put_keysym(con, keysym);
++        kbd_put_keysym(keysym);
 +    }
 +}
 +
