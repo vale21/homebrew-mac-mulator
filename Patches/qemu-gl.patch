@@ -1,4 +1,4 @@
-From 51ceb3e720db03b64365953a1d2043cc44e97853 Mon Sep 17 00:00:00 2001
+From 2b5b543bff18df009f3d6c4b205416aeead4c0f8 Mon Sep 17 00:00:00 2001
 From: Valerio Volpi <valerio.volpi@quantabrain.org>
 Date: Thu, 20 Mar 2025 09:29:08 +0100
 Subject: [PATCH] Trying to build cocoa gl
@@ -7,19 +7,19 @@ Subject: [PATCH] Trying to build cocoa gl
  include/ui/cocoa.h               |  127 ++
  include/ui/console.h             |   30 +
  include/ui/egl-helpers.h         |    4 +-
- include/ui/gtk.h                 |   54 +-
+ include/ui/gtk.h                 |   50 +-
  qemu-options.hx                  |   20 +
  system/vl.c                      |    4 +-
  ui/cocoa.m                       | 2177 ------------------------------
  ui/cocoa/app_controller.m        |  688 ++++++++++
- ui/cocoa/main.m                  |  945 +++++++++++++
+ ui/cocoa/main.m                  |  922 +++++++++++++
  ui/cocoa/pasteboard_type_owner.m |   75 +
  ui/cocoa/view.m                  |  921 +++++++++++++
  ui/egl-helpers.c                 |  140 +-
  ui/gtk-egl.c                     |    2 +-
  ui/meson.build                   |    4 +-
  ui/shader.c                      |   14 +-
- 15 files changed, 2923 insertions(+), 2282 deletions(-)
+ 15 files changed, 2898 insertions(+), 2280 deletions(-)
  create mode 100644 include/ui/cocoa.h
  delete mode 100644 ui/cocoa.m
  create mode 100644 ui/cocoa/app_controller.m
@@ -217,27 +217,9 @@ index 4b8c0d2281..d38892ff05 100644
  #if defined(CONFIG_X11) || defined(CONFIG_GBM)
  
 diff --git a/include/ui/gtk.h b/include/ui/gtk.h
-index aa3d637029..09f18e3fc5 100644
+index aa3d637029..e6808ea893 100644
 --- a/include/ui/gtk.h
 +++ b/include/ui/gtk.h
-@@ -21,7 +21,7 @@
- #include "ui/clipboard.h"
- #include "ui/console.h"
- #include "ui/kbd-state.h"
--#if defined(CONFIG_OPENGL)
-+#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
- #include "ui/egl-helpers.h"
- #include "ui/egl-context.h"
- #endif
-@@ -43,7 +43,7 @@ typedef struct VirtualGfxConsole {
-     cairo_surface_t *surface;
-     double scale_x;
-     double scale_y;
--#if defined(CONFIG_OPENGL)
-+#if defined(CONFIG_OPENGL) && defined(CONFIG_EGL)
-     QemuGLShader *gls;
-     EGLContext ectx;
-     EGLSurface esurface;
 @@ -166,31 +166,25 @@ void gd_egl_update(DisplayChangeListener *dcl,
  void gd_egl_refresh(DisplayChangeListener *dcl);
  void gd_egl_switch(DisplayChangeListener *dcl,
@@ -3248,10 +3230,10 @@ index 0000000000..08e5ad34d2
 +@end
 diff --git a/ui/cocoa/main.m b/ui/cocoa/main.m
 new file mode 100644
-index 0000000000..06d42c7406
+index 0000000000..feab165353
 --- /dev/null
 +++ b/ui/cocoa/main.m
-@@ -0,0 +1,945 @@
+@@ -0,0 +1,922 @@
 +/*
 + * QEMU Cocoa CG display driver
 + *
@@ -3305,10 +3287,7 @@ index 0000000000..06d42c7406
 +#include "qemu/error-report.h"
 +#include <Carbon/Carbon.h>
 +#include "hw/core/cpu.h"
-+
-+#ifdef CONFIG_EGL
 +#include "ui/egl-context.h"
-+#endif
 +
 +static QEMUScreen screen;
 +static QemuCocoaAppController *appController;
@@ -3337,10 +3316,7 @@ index 0000000000..06d42c7406
 +static GLuint cursor_texture;
 +static int cursor_texture_width;
 +static int cursor_texture_height;
-+
-+#ifdef CONFIG_EGL
 +static EGLSurface egl_surface;
-+#endif
 +
 +static void cocoa_gl_destroy_context(void *dg, QEMUGLContext ctx);
 +
@@ -3709,13 +3685,11 @@ index 0000000000..06d42c7406
 +
 +static void with_view_ctx(CodeBlock block)
 +{
-+#ifdef CONFIG_EGL
 +    if (egl_surface) {
 +        eglMakeCurrent(qemu_egl_display, egl_surface, egl_surface, view_ctx);
 +        block();
 +        return;
 +    }
-+#endif
 +
 +#pragma clang diagnostic push
 +#pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -3758,12 +3732,10 @@ index 0000000000..06d42c7406
 +
 +static int cocoa_gl_make_context_current(void *dg, QEMUGLContext ctx)
 +{
-+#ifdef CONFIG_EGL
 +    if (egl_surface) {
 +        EGLSurface surface = ctx == EGL_NO_CONTEXT ? EGL_NO_SURFACE : egl_surface;
 +        return eglMakeCurrent(qemu_egl_display, surface, surface, ctx);
 +    }
-+#endif
 +
 +#pragma clang diagnostic push
 +#pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -3779,12 +3751,10 @@ index 0000000000..06d42c7406
 +
 +static QEMUGLContext cocoa_gl_create_context(void *dg, QEMUGLParams *params)
 +{
-+#ifdef CONFIG_EGL
 +    if (egl_surface) {
 +        eglMakeCurrent(qemu_egl_display, egl_surface, egl_surface, view_ctx);
 +        return qemu_egl_create_context(dg, params);
 +    }
-+#endif
 +
 +    int bpp = PIXMAN_FORMAT_BPP(surface_format(screen.surface));
 +    return cocoa_gl_create_context_ns(view_ctx, bpp);
@@ -3792,12 +3762,10 @@ index 0000000000..06d42c7406
 +
 +static void cocoa_gl_destroy_context(void *dg, QEMUGLContext ctx)
 +{
-+#ifdef CONFIG_EGL
 +    if (egl_surface) {
 +        eglDestroyContext(qemu_egl_display, ctx);
 +        return;
 +    }
-+#endif
 +
 +#pragma clang diagnostic push
 +#pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -3807,12 +3775,10 @@ index 0000000000..06d42c7406
 +
 +static void cocoa_gl_flush()
 +{
-+#ifdef CONFIG_EGL
 +    if (egl_surface) {
 +        eglSwapBuffers(qemu_egl_display, egl_surface);
 +        return;
 +    }
-+#endif
 +
 +#pragma clang diagnostic push
 +#pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -4124,7 +4090,6 @@ index 0000000000..06d42c7406
 +        // }
 +
 +        if (opts->gl == DISPLAY_GL_MODE_ES) {
-+#ifdef CONFIG_EGL
 +            if (qemu_egl_init_dpy_cocoa(DISPLAY_GL_MODE_ES)) {
 +                exit(1);
 +            }
@@ -4136,15 +4101,9 @@ index 0000000000..06d42c7406
 +                CALayer *layer = [[appController cocoaView] layer];
 +                egl_surface = qemu_egl_init_surface(view_ctx, layer);
 +            });
-+#else
-+            error_report("OpenGLES without EGL is not supported - exiting");
-+            exit(1);
-+#endif
 +        } else {
 +            view_ctx = cocoa_gl_create_context_ns(nil, 32);
-+#ifdef CONFIG_EGL
 +            egl_surface = EGL_NO_SURFACE;
-+#endif
 +            cocoa_gl_make_context_current(NULL, view_ctx);
 +        }
 +

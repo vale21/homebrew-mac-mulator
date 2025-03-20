@@ -39,7 +39,7 @@ class Qemu < Formula
 
   patch :p1 do
     url "https://raw.githubusercontent.com/vale21/homebrew-mac-mulator/refs/heads/build-gl/Patches/qemu-gl.patch"
-    sha256 "19c4ee0e6d162fc22ff189cce96d14b421e8801972aa5529fed619c495f1299b"
+    sha256 "91cbd275b3cd86e4a3bcd2deb79dc47488b368fb0cd42c0ea2e8794b62901e12"
   end
 
   def install
@@ -56,7 +56,7 @@ class Qemu < Formula
       --enable-vde
       --enable-spice
       --enable-virglrenderer
-      --enable-sdl
+      --disable-sdl
       --disable-gtk
       --extra-cflags=-DNCURSES_WIDECHAR=1
       --extra-cflags=-I#{Formula["libangle"].opt_prefix}/include
