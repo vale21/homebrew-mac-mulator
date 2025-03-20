@@ -39,7 +39,7 @@ class Qemu < Formula
 
   patch :p1 do
     url "https://raw.githubusercontent.com/vale21/homebrew-mac-mulator/refs/heads/build-gl/Patches/qemu-gl.patch"
-    sha256 "2d2a3c7966effc2d45c99d75bd54a7efc856a9ca2f045a0ba87a75d541ab7bfa"
+    sha256 "0b7d8e08a14f2813cb95d72cb5d14bc3ab5b4ea332613f3c3ad2013e0c1d41b2"
   end
 
   def install

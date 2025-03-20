@@ -1,4 +1,4 @@
-From 41bafe42f0aa88db6a248cbedb2b0a3757e325fb Mon Sep 17 00:00:00 2001
+From 0819b7b62fcea0a11cd1b517ec13aa5cc111e6fd Mon Sep 17 00:00:00 2001
 From: Valerio Volpi <valerio.volpi@quantabrain.org>
 Date: Thu, 20 Mar 2025 09:29:08 +0100
 Subject: [PATCH] Trying to build cocoa gl
@@ -12,14 +12,14 @@ Subject: [PATCH] Trying to build cocoa gl
  system/vl.c                      |    4 +-
  ui/cocoa.m                       | 2177 ------------------------------
  ui/cocoa/app_controller.m        |  688 ++++++++++
- ui/cocoa/main.m                  |  932 +++++++++++++
+ ui/cocoa/main.m                  |  930 +++++++++++++
  ui/cocoa/pasteboard_type_owner.m |   75 +
  ui/cocoa/view.m                  |  921 +++++++++++++
  ui/egl-helpers.c                 |  140 +-
  ui/gtk-egl.c                     |    2 +-
  ui/meson.build                   |    4 +-
  ui/shader.c                      |   14 +-
- 15 files changed, 2910 insertions(+), 2282 deletions(-)
+ 15 files changed, 2908 insertions(+), 2282 deletions(-)
  create mode 100644 include/ui/cocoa.h
  delete mode 100644 ui/cocoa.m
  create mode 100644 ui/cocoa/app_controller.m
@@ -3248,10 +3248,10 @@ index 0000000000..08e5ad34d2
 +@end
 diff --git a/ui/cocoa/main.m b/ui/cocoa/main.m
 new file mode 100644
-index 0000000000..568d74ba81
+index 0000000000..d5b6e55f3e
 --- /dev/null
 +++ b/ui/cocoa/main.m
-@@ -0,0 +1,932 @@
+@@ -0,0 +1,930 @@
 +/*
 + * QEMU Cocoa CG display driver
 + *
@@ -4027,8 +4027,6 @@ index 0000000000..568d74ba81
 +    QemuThread thread;
 +
 +    COCOA_DEBUG("Entered main()\n");
-+    gArgc = argc;
-+    gArgv = argv;
 +
 +    qemu_sem_init(&display_init_sem, 0);
 +    qemu_sem_init(&app_started_sem, 0);
