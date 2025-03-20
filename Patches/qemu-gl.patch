@@ -1,4 +1,4 @@
-From 1353c2b0eedd3dbdabdefc3ae0e77e4490f1bc0d Mon Sep 17 00:00:00 2001
+From c29885a61c295f572c2d747e785261dd41eb9315 Mon Sep 17 00:00:00 2001
 From: Valerio Volpi <valerio.volpi@quantabrain.org>
 Date: Thu, 20 Mar 2025 09:29:08 +0100
 Subject: [PATCH] Trying to build cocoa gl
@@ -3248,7 +3248,7 @@ index 0000000000..08e5ad34d2
 +@end
 diff --git a/ui/cocoa/main.m b/ui/cocoa/main.m
 new file mode 100644
-index 0000000000..65888502aa
+index 0000000000..2caa3eb8e3
 --- /dev/null
 +++ b/ui/cocoa/main.m
 @@ -0,0 +1,893 @@
@@ -3440,7 +3440,7 @@ index 0000000000..65888502aa
 +
 +    COCOA_DEBUG("Second thread: calling qemu_main()\n");
 +    //status = qemu_main(gArgc, gArgv, *_NSGetEnviron());
-+    status = qemu_main()
++    status = qemu_main();
 +    COCOA_DEBUG("Second thread: qemu_main() returned, exiting\n");
 +    [cbowner release];
 +    CGImageRelease(screen.cursor_cgimage);
@@ -4074,11 +4074,11 @@ index 0000000000..65888502aa
 +
 +        dgs = g_new0(DisplayGL, console_count);
 +
-+        for (unsigned int index = 0; index < console_count; index++) {
-+            QemuConsole *con = qemu_console_lookup_by_index(index);
-+            con->dg = dgs + index;
-+            //console_set_displayglcontext(con, dgs + index);
-+        }
++        // for (unsigned int index = 0; index < console_count; index++) {
++        //     QemuConsole *con = qemu_console_lookup_by_index(index);
++        //     con->dg = dgs + index;
++        //     //console_set_displayglcontext(con, dgs + index);
++        // }
 +
 +        if (opts->gl == DISPLAY_GL_MODE_ES) {
 +#ifdef CONFIG_EGL
