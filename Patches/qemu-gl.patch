@@ -1,4 +1,4 @@
-From c29885a61c295f572c2d747e785261dd41eb9315 Mon Sep 17 00:00:00 2001
+From 3bc632b3ff04d64ab7992b16d7bad872d5bef156 Mon Sep 17 00:00:00 2001
 From: Valerio Volpi <valerio.volpi@quantabrain.org>
 Date: Thu, 20 Mar 2025 09:29:08 +0100
 Subject: [PATCH] Trying to build cocoa gl
@@ -3248,7 +3248,7 @@ index 0000000000..08e5ad34d2
 +@end
 diff --git a/ui/cocoa/main.m b/ui/cocoa/main.m
 new file mode 100644
-index 0000000000..2caa3eb8e3
+index 0000000000..fab19fd327
 --- /dev/null
 +++ b/ui/cocoa/main.m
 @@ -0,0 +1,893 @@
@@ -3434,71 +3434,71 @@ index 0000000000..2caa3eb8e3
 + * where we want to just print text to stdout and exit immediately.
 + */
 +
-+static void *call_qemu_main(void *opaque)
-+{
-+    int status;
++// static void *call_qemu_main(void *opaque)
++// {
++//     int status;
 +
-+    COCOA_DEBUG("Second thread: calling qemu_main()\n");
-+    //status = qemu_main(gArgc, gArgv, *_NSGetEnviron());
-+    status = qemu_main();
-+    COCOA_DEBUG("Second thread: qemu_main() returned, exiting\n");
-+    [cbowner release];
-+    CGImageRelease(screen.cursor_cgimage);
-+#ifdef CONFIG_OPENGL
-+    g_free(dgs);
-+    qemu_gl_fini_shader(gls);
-+    if (view_ctx) {
-+        cocoa_gl_destroy_context(NULL, view_ctx);
-+    }
-+    if (appController) {
-+        [appController release];
-+    }
-+#endif
-+    exit(status);
-+}
++//     COCOA_DEBUG("Second thread: calling qemu_main()\n");
++//     //status = qemu_main(gArgc, gArgv, *_NSGetEnviron());
++//     status = qemu_main();
++//     COCOA_DEBUG("Second thread: qemu_main() returned, exiting\n");
++//     [cbowner release];
++//     CGImageRelease(screen.cursor_cgimage);
++// #ifdef CONFIG_OPENGL
++//     g_free(dgs);
++//     qemu_gl_fini_shader(gls);
++//     if (view_ctx) {
++//         cocoa_gl_destroy_context(NULL, view_ctx);
++//     }
++//     if (appController) {
++//         [appController release];
++//     }
++// #endif
++//     exit(status);
++// }
 +
-+int main (int argc, char **argv) {
-+    QemuThread thread;
++// int main (int argc, char **argv) {
++//     QemuThread thread;
 +
-+    COCOA_DEBUG("Entered main()\n");
-+    gArgc = argc;
-+    gArgv = argv;
++//     COCOA_DEBUG("Entered main()\n");
++//     gArgc = argc;
++//     gArgv = argv;
 +
-+    qemu_sem_init(&display_init_sem, 0);
-+    qemu_sem_init(&app_started_sem, 0);
++//     qemu_sem_init(&display_init_sem, 0);
++//     qemu_sem_init(&app_started_sem, 0);
 +
-+    qemu_thread_create(&thread, "qemu_main", call_qemu_main,
-+                       NULL, QEMU_THREAD_DETACHED);
++//     qemu_thread_create(&thread, "qemu_main", call_qemu_main,
++//                        NULL, QEMU_THREAD_DETACHED);
 +
-+    qemu_mutex_init(&screen.draw_mutex);
++//     qemu_mutex_init(&screen.draw_mutex);
 +
-+    COCOA_DEBUG("Main thread: waiting for display_init_sem\n");
-+    qemu_sem_wait(&display_init_sem);
-+    COCOA_DEBUG("Main thread: initializing app\n");
++//     COCOA_DEBUG("Main thread: waiting for display_init_sem\n");
++//     qemu_sem_wait(&display_init_sem);
++//     COCOA_DEBUG("Main thread: initializing app\n");
 +
-+    NSAutoreleasePool * pool = [[NSAutoreleasePool alloc] init];
++//     NSAutoreleasePool * pool = [[NSAutoreleasePool alloc] init];
 +
-+    // Pull this console process up to being a fully-fledged graphical
-+    // app with a menubar and Dock icon
-+    ProcessSerialNumber psn = { 0, kCurrentProcess };
-+    TransformProcessType(&psn, kProcessTransformToForegroundApplication);
++//     // Pull this console process up to being a fully-fledged graphical
++//     // app with a menubar and Dock icon
++//     ProcessSerialNumber psn = { 0, kCurrentProcess };
++//     TransformProcessType(&psn, kProcessTransformToForegroundApplication);
 +
-+    [QemuApplication sharedApplication];
++//     [QemuApplication sharedApplication];
 +
-+    // Create an Application controller
-+    appController = [[QemuCocoaAppController alloc] initWithStartedSem:&app_started_sem
-+                                                                screen:&screen];
-+    [NSApp setDelegate:appController];
++//     // Create an Application controller
++//     appController = [[QemuCocoaAppController alloc] initWithStartedSem:&app_started_sem
++//                                                                 screen:&screen];
++//     [NSApp setDelegate:appController];
 +
-+    // Start the main event loop
-+    COCOA_DEBUG("Main thread: entering OSX run loop\n");
-+    [NSApp run];
-+    COCOA_DEBUG("Main thread: left OSX run loop, exiting\n");
++//     // Start the main event loop
++//     COCOA_DEBUG("Main thread: entering OSX run loop\n");
++//     [NSApp run];
++//     COCOA_DEBUG("Main thread: left OSX run loop, exiting\n");
 +
-+    [pool release];
++//     [pool release];
 +
-+    return 0;
-+}
++//     return 0;
++// }
 +
 +
 +
