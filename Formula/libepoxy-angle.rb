@@ -1,7 +1,7 @@
 class LibepoxyAngle < Formula
   desc "Library for handling OpenGL function pointer management"
   homepage "https://github.com/anholt/libepoxy"
-  url "https://github.com/anholt/libepoxy.git", using: :git, revision: "de08cf3479ca06ff921c584eeee6280e5a135f99"
+  url "https://github.com/utmapp/libepoxy.git", using: :git, revision: "266d2290a437c655f7419e85af06bfbb73a720c4"
   version "20210315.1"
   license "MIT"
 
@@ -12,16 +12,15 @@ class LibepoxyAngle < Formula
   depends_on "vale21/mac-mulator/libangle"
 
   # waiting for upstreaming of https://github.com/akihikodaki/libepoxy/tree/macos
-  patch :p1 do
-    url "https://raw.githubusercontent.com/vale21/homebrew-mac-mulator/refs/heads/main/Patches/libepoxy-v02.diff"
-    sha256 "8ce3a33be6ccab5482e77261d0ca98d0a6aeff9d6dfc32b0e75cd323f87dccee"
-  end
+  # patch :p1 do
+  #   url "https://raw.githubusercontent.com/vale21/homebrew-mac-mulator/refs/heads/main/Patches/libepoxy-v02.diff"
+  #   sha256 "8ce3a33be6ccab5482e77261d0ca98d0a6aeff9d6dfc32b0e75cd323f87dccee"
+  # end
 
   def install
     mkdir "build" do
       system "meson", *std_meson_args, "-Dc_args=-I#{Formula["libangle"].opt_prefix}/include",
-             "-Dc_link_args=-L#{Formula["libangle"].opt_prefix}/lib", "-Degl=yes", "-Dx11=false",
-             "-Dfallback-libdir=#{HOMEBREW_PREFIX}/lib", ".."
+             "-Dc_link_args=-L#{Formula["libangle"].opt_prefix}/lib", "-Degl=yes", "-Dx11=false", ".."
       system "ninja", "-v"
       system "ninja", "install", "-v"
     end

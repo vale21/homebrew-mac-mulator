@@ -1,7 +1,7 @@
 class Qemu < Formula
   desc "Emulator for x86 and PowerPC"
   homepage "https://www.qemu.org/"
-  url "https://github.com/qemu/qemu.git", using: :git, revision: "v9.2.2"
+  url "https://github.com/vale21/qemu.git", using: :git, revision: "homebrew"
   version "v0.4.9"
   license "GPL-2.0-only"
 
@@ -79,8 +79,8 @@ class Qemu < Formula
 
     args << "--enable-cocoa" if OS.mac?
 
-    system "curl", "-L", "-o", "qemu-icons.patch", "https://raw.githubusercontent.com/vale21/homebrew-mac-mulator/refs/heads/main/Patches/qemu-icons.patch"
-    system "git", "apply", "qemu-icons.patch"
+    # system "curl", "-L", "-o", "qemu-icons.patch", "https://raw.githubusercontent.com/vale21/homebrew-mac-mulator/refs/heads/main/Patches/qemu-icons.patch"
+    # system "git", "apply", "qemu-icons.patch"
     system "./configure", *args
     system "make", "V=1", "install"
   end

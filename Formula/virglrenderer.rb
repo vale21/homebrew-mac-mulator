@@ -1,7 +1,7 @@
 class Virglrenderer < Formula
   desc "VirGL virtual OpenGL renderer"
   homepage "https://gitlab.freedesktop.org/virgl/virglrenderer"
-  url "https://gitlab.freedesktop.org/virgl/virglrenderer.git", revision: "1.1.0"
+  url "https://github.com/utmapp/virglrenderer.git", revision: "dc039d9ecd74fc671a85bfbe7c4e4bc552b7b855"
   version "20211212.1"
   license "MIT"
 
