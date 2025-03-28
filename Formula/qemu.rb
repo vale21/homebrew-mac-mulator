@@ -1,8 +1,8 @@
 class Qemu < Formula
   desc "Emulator for x86 and PowerPC"
   homepage "https://www.qemu.org/"
-  url "https://github.com/qemu/qemu.git", using: :git, revision: "v9.2.2"
-  version "v0.4.9"
+  url "https://github.com/vale21/qemu.git", using: :git, revision: "homebrew"
+  version "v9.1.2-macmulator"
   license "GPL-2.0-only"
 
   depends_on "libtool" => :build
@@ -36,11 +36,6 @@ class Qemu < Formula
     url "https://web.archive.org/web/20181007135558/https://www.ibiblio.org/pub/micro/pc-stuff/freedos/files/distributions/1.2/FD12FLOPPY.zip"
     sha256 "81237c7b42dc0ffc8b32a2f5734e3480a3f9a470c50c14a9c4576a2561a35807"
   end
-
-  # patch :p1 do
-  #   url "https://raw.githubusercontent.com/vale21/homebrew-mac-mulator/refs/heads/main/Patches/qemu-icons.patch"
-  #   sha256 "2657dc7413eff6b627944b5cff0efe156f2ead335ce1c8f788a03accf1a9ad98"
-  # end
 
   def install
     ENV["LIBTOOL"] = "glibtool"
@@ -79,8 +74,6 @@ class Qemu < Formula
 
     args << "--enable-cocoa" if OS.mac?
 
-    system "curl", "-L", "-o", "qemu-icons.patch", "https://raw.githubusercontent.com/vale21/homebrew-mac-mulator/refs/heads/main/Patches/qemu-icons.patch"
-    system "git", "apply", "qemu-icons.patch"
     system "./configure", *args
     system "make", "V=1", "install"
   end
