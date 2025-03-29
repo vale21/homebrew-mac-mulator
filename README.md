@@ -17,7 +17,7 @@ This formula installs a fully featured Qemu, starting from the great job done by
 
 If you are using MacMulator, just point it to your Homebrew folder: `/opt/homebrew/bin` on Apple Silicon Macs, and `/usr/local/bin` on Intel Macs. It will find Qemu and use it to launch its Virtual Machines.
 
-If you want to invoke it via command line, or using any other tool of you choice, just follow the [Qemu User Documentation](https://www.qemu.org/docs/master/system/qemu-manpage.html). This version of Qemu if fully compatible with the standard one.
+If you want to invoke it via command line, or using any other tool of your choice, just follow the [Qemu User Documentation](https://www.qemu.org/docs/master/system/qemu-manpage.html). This version of Qemu is fully compatible with the standard one.
 
 ## Note on 3D Acceleration and Spice
 
@@ -32,4 +32,6 @@ MacMulator does not support Spice yet (Coming soon, however), so if you want it 
 -chardev spicevmc,id=spicechannel0,name=vdagent
 `
 
-and use a Spice viewer, like [virt-viewer](https://github.com/jeffreywildman/homebrew-virt-manager)
+and use a Spice viewer, like [virt-viewer](https://github.com/jeffreywildman/homebrew-virt-manager):
+
+`remote-viewer spice+unix:///tmp/spice.sock`
