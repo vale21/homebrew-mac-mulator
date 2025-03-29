@@ -1,7 +1,7 @@
 class Qemu < Formula
   desc "Emulator for x86 and PowerPC"
   homepage "https://www.qemu.org/"
-  url "https://github.com/vale21/qemu.git", using: :git, revision: "homebrew"
+  url "https://github.com/vale21/qemu.git", using: :git, revision: "v9.1.2-macmulator"
   version "v9.1.2-macmulator"
   license "GPL-2.0-only"
 
@@ -30,6 +30,7 @@ class Qemu < Formula
   depends_on "python@3.13"
   depends_on "sdl2"
   depends_on "curl"
+  depends_on "swtpm"
 
   # 820KB floppy disk image file of FreeDOS 1.2, used to test QEMU
   resource "test-image" do
