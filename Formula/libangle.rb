@@ -5,6 +5,12 @@ class Libangle < Formula
   version "v4.5.0-utm"
   license "BSD-3-Clause"
 
+  bottle do
+    root_url "https://github.com/vale21/homebrew-mac-mulator/releases/download/v4.5.0-utm"
+    rebuild 1
+    sha256 cellar: :any, arm64_sequoia: "13b488d97f212c382416d9040fdedaee81552fd72c5fa218cacffe14a8e9d843"
+  end
+
   depends_on "rsync" => :build
 
   def install
