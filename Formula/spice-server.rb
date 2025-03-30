@@ -4,6 +4,8 @@ class SpiceServer < Formula
   url "https://gitlab.freedesktop.org/spice/spice/uploads/29ef6b318d554e835a02e2141f888437/spice-0.15.2.tar.bz2"
   sha256 "6d9eb6117f03917471c4bc10004abecff48a79fb85eb85a1c45f023377015b81"
   head "https://gitlab.freedesktop.org/spice/spice.git", branch: "master"
+  version "v0.15.2"
+  license "GPL-2.0-only"
 
   depends_on "libtool" => :build
   depends_on "meson" => :build
