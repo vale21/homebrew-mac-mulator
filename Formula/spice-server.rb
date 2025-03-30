@@ -7,6 +7,12 @@ class SpiceServer < Formula
   version "v0.15.2"
   license "GPL-2.0-only"
 
+  bottle do
+    root_url "https://github.com/vale21/homebrew-mac-mulator/releases/download/v1.0.0"
+    rebuild 1
+    sha256 cellar: :any, arm64_sequoia: "6b127cdd19756ef1f94d70a9c51726840dd7a076543fbd665fde46b33237fc51"
+  end
+
   depends_on "libtool" => :build
   depends_on "meson" => :build
   depends_on "ninja" => :build

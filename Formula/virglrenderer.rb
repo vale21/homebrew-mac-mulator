@@ -5,6 +5,12 @@ class Virglrenderer < Formula
   version "v0.8.2-utm"
   license "MIT"
 
+  bottle do
+    root_url "https://github.com/vale21/homebrew-mac-mulator/releases/download/v1.0.0"
+    rebuild 1
+    sha256 cellar: :any, arm64_sequoia: "fef4cc3956081b2481ea26ed42fdf9269cb4d3856c6c3ecfcc9f85d4d99575b3"
+  end
+
   depends_on "meson" => :build
   depends_on "ninja" => :build
   depends_on "pkg-config" => :build

@@ -5,6 +5,12 @@ class LibepoxyAngle < Formula
   version "v1.5.8-utm"
   license "MIT"
 
+  bottle do
+    root_url "https://github.com/vale21/homebrew-mac-mulator/releases/download/v1.0.0"
+    rebuild 1
+    sha256 cellar: :any, arm64_sequoia: "49b563fdbacaff23afa92ff67518cddff64f6c9db3768095ff1f31c7cef25b2b"
+  end
+
   depends_on "meson" => :build
   depends_on "ninja" => :build
   depends_on "pkg-config" => :build
