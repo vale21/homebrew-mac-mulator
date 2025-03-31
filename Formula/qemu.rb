@@ -8,7 +8,7 @@ class Qemu < Formula
   bottle do
     root_url "https://github.com/vale21/homebrew-mac-mulator/releases/download/v1.0.0"
     rebuild 1
-    sha256 arm64_sequoia: "c5fbe0e8955bebf57cce28ed7d76c391fd2bbe030a063d4e9720802b80eb6958"
+    sha256 arm64_sequoia: "4dfde421619b2b4d288568f7c03457f244f0d45fc2a539d73963ccc0669b1b3d"
     sha256 arm64_sonoma: "1ffe8f3a8009e804afbc63f0dccf37d7c8f58fc89f784514d0b2ea9aa3c2107f"
   end
 
