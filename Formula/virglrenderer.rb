@@ -9,6 +9,7 @@ class Virglrenderer < Formula
     root_url "https://github.com/vale21/homebrew-mac-mulator/releases/download/v1.0.0"
     rebuild 1
     sha256 cellar: :any, arm64_sequoia: "fef4cc3956081b2481ea26ed42fdf9269cb4d3856c6c3ecfcc9f85d4d99575b3"
+    sha256 cellar: :any, arm64_sonoma: "4abf8086fbfe1157c92411648d9f158875a25f6f1d349ad189b937ba98ae2536"
   end
 
   depends_on "meson" => :build

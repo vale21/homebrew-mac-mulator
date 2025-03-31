@@ -9,6 +9,7 @@ class LibepoxyAngle < Formula
     root_url "https://github.com/vale21/homebrew-mac-mulator/releases/download/v1.0.0"
     rebuild 1
     sha256 cellar: :any, arm64_sequoia: "49b563fdbacaff23afa92ff67518cddff64f6c9db3768095ff1f31c7cef25b2b"
+    sha256 cellar: :any, arm64_sonoma: "538a3995e75cfba549a50f7b208002dd3392da744acadbcd63b482c83f95ce91"
   end
 
   depends_on "meson" => :build

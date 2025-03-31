@@ -11,6 +11,7 @@ class SpiceServer < Formula
     root_url "https://github.com/vale21/homebrew-mac-mulator/releases/download/v1.0.0"
     rebuild 1
     sha256 cellar: :any, arm64_sequoia: "6b127cdd19756ef1f94d70a9c51726840dd7a076543fbd665fde46b33237fc51"
+    sha256 cellar: :any, arm64_sonoma: "03ea81c20e5687f650b92b675ba6ded525d91dcb33a9e21573568498d7404a44"
   end
 
   depends_on "libtool" => :build

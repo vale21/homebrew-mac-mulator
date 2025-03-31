@@ -1,7 +1,7 @@
 class Qemu < Formula
   desc "Emulator for x86 and PowerPC"
   homepage "https://www.qemu.org/"
-  url "https://github.com/vale21/qemu.git", using: :git, revision: "v9.1.2-macmulator"
+  url "https://github.com/vale21/qemu.git", using: :git, revision: "14fbc318f3ced240449cf49cf678c3d7e6d5eb00"
   version "v9.1.2-macmulator"
   license "GPL-2.0-only"
 
@@ -9,6 +9,7 @@ class Qemu < Formula
     root_url "https://github.com/vale21/homebrew-mac-mulator/releases/download/v1.0.0"
     rebuild 1
     sha256 arm64_sequoia: "c5fbe0e8955bebf57cce28ed7d76c391fd2bbe030a063d4e9720802b80eb6958"
+    sha256 arm64_sonoma: "1ffe8f3a8009e804afbc63f0dccf37d7c8f58fc89f784514d0b2ea9aa3c2107f"
   end
 
   depends_on "libtool" => :build

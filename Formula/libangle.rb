@@ -9,6 +9,7 @@ class Libangle < Formula
     root_url "https://github.com/vale21/homebrew-mac-mulator/releases/download/v1.0.0"
     rebuild 1
     sha256 cellar: :any, arm64_sequoia: "13b488d97f212c382416d9040fdedaee81552fd72c5fa218cacffe14a8e9d843"
+    sha256 cellar: :any, arm64_sonoma: "e6b9b731ec55f0fe4c2886fc29f590ba00aa71775e803d7ac2f714f9015fdec2"
   end
 
   depends_on "rsync" => :build
