@@ -1,7 +1,7 @@
 class Qemu < Formula
   desc "Emulator for x86 and PowerPC"
   homepage "https://www.qemu.org/"
-  url "https://github.com/vale21/qemu.git", using: :git, revision: "14fbc318f3ced240449cf49cf678c3d7e6d5eb00"
+  url "https://github.com/vale21/qemu.git", using: :git, revision: "v9.1.2-macmulator"
   version "v9.1.2-macmulator"
   license "GPL-2.0-only"
 
