@@ -10,6 +10,7 @@ class Qemu < Formula
     rebuild 1
     sha256 arm64_sequoia: "4dfde421619b2b4d288568f7c03457f244f0d45fc2a539d73963ccc0669b1b3d"
     sha256 arm64_sonoma: "1ffe8f3a8009e804afbc63f0dccf37d7c8f58fc89f784514d0b2ea9aa3c2107f"
+    sha256 arm64_ventura: "23467a55dfd14fe168485d8a2674f79e9a44fd8f1df74c09f2c2606f7fc6d062"
   end
 
   depends_on "libtool" => :build
