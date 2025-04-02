@@ -12,6 +12,7 @@ class LibepoxyAngle < Formula
     sha256 cellar: :any, arm64_sonoma: "538a3995e75cfba549a50f7b208002dd3392da744acadbcd63b482c83f95ce91"
     sha256 cellar: :any, arm64_ventura: "fcd2ba1fce9b729bef8269ca73e620a0e8137f667e651b83d0d1f3ace4aab5e4"
     sha256 cellar: :any, sequoia: "033ea0b4706a7c9f14be0316c8a33e33cadf2984feb7f879653d60dcffc06516"
+    sha256 cellar: :any, sonoma: "21b137eb7c36f28ee9bdbe08dab5111ce44b8bb88d47476a20b528061591c37e"
   end
 
   depends_on "meson" => :build
