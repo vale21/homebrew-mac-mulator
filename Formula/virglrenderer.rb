@@ -11,6 +11,7 @@ class Virglrenderer < Formula
     sha256 cellar: :any, arm64_sequoia: "fef4cc3956081b2481ea26ed42fdf9269cb4d3856c6c3ecfcc9f85d4d99575b3"
     sha256 cellar: :any, arm64_sonoma: "4abf8086fbfe1157c92411648d9f158875a25f6f1d349ad189b937ba98ae2536"
     sha256 cellar: :any, arm64_ventura: "e50117b4132020d2120d288d1587c8249144cbf859ffe8bedaedbc9e2f366885"
+    sha256 cellar: :any, sequoia: "f33440905042642e53c2bad5e4e347b816cceaaa83ea069e7da13e927ba7397b"
   end
 
   depends_on "meson" => :build

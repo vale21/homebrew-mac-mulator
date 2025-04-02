@@ -13,6 +13,7 @@ class SpiceServer < Formula
     sha256 cellar: :any, arm64_sequoia: "6b127cdd19756ef1f94d70a9c51726840dd7a076543fbd665fde46b33237fc51"
     sha256 cellar: :any, arm64_sonoma: "03ea81c20e5687f650b92b675ba6ded525d91dcb33a9e21573568498d7404a44"
     sha256 cellar: :any, arm64_ventura: "e54032995490ee9dbb5d086aa9bd3767decbe2dfb136b182117ec19b51b3a547"
+    sha256 cellar: :any, sequoia: "b9575830333e41ed9dc1442275c40ae83189e2ac12eeb058365953657a9d0d26"
   end
 
   depends_on "libtool" => :build
