@@ -13,6 +13,7 @@ class Qemu < Formula
     sha256 arm64_ventura: "23467a55dfd14fe168485d8a2674f79e9a44fd8f1df74c09f2c2606f7fc6d062"
     sha256 sequoia: "d122ba31358ed0a44acb798ac3327d36296593c720f5532bf37f760284fa1d0c"
     sha256 sonoma: "c82345d5cde67bac69952d5e2cbe121c19bbee85b4341b961ffe17b409776910"
+    sha256 ventura: "6cf8c905711e8a98e57914419583e6d6b50f42a2d464b4692b5728638ed4fdfe"
   end
 
   depends_on "libtool" => :build

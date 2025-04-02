@@ -13,6 +13,7 @@ class Libangle < Formula
     sha256 cellar: :any, arm64_ventura: "3171b6cb39248f178ba7d18665453caffdf0a922e1a0b152f71129d4566f1011"
     sha256 cellar: :any, sequoia: "963a82fdd76456b8b3ac77b6d5e40d72b396f10a3ecab44162546d8fae46af46"
     sha256 cellar: :any, sonoma: "bea640b5bc1e46870a32b21457f788885e5ccc3010f761ff853d71cb8bae1488"
+    sha256 cellar: :any, ventura: "341bcb5ec9b23f39c739833f6d778ba4299098c960424f7b9667b804385f5504"
   end
 
   depends_on "rsync" => :build
