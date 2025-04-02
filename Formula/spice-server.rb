@@ -7,6 +7,17 @@ class SpiceServer < Formula
   version "v0.15.2"
   license "GPL-2.0-only"
 
+  bottle do
+    root_url "https://github.com/vale21/homebrew-mac-mulator/releases/download/v1.0.0"
+    rebuild 1
+    sha256 cellar: :any, arm64_sequoia: "6b127cdd19756ef1f94d70a9c51726840dd7a076543fbd665fde46b33237fc51"
+    sha256 cellar: :any, arm64_sonoma: "03ea81c20e5687f650b92b675ba6ded525d91dcb33a9e21573568498d7404a44"
+    sha256 cellar: :any, arm64_ventura: "e54032995490ee9dbb5d086aa9bd3767decbe2dfb136b182117ec19b51b3a547"
+    sha256 cellar: :any, sequoia: "b9575830333e41ed9dc1442275c40ae83189e2ac12eeb058365953657a9d0d26"
+    sha256 cellar: :any, sonoma: "d5c813960af63690d318da9d8e0b585e49ff0135df2ae2055455c83253372c5c"
+    sha256 cellar: :any, ventura: "a53cba63e5921a7322fb9716baf209e1b8bd81a2568e43884f3df69a95430389"
+  end
+
   depends_on "libtool" => :build
   depends_on "meson" => :build
   depends_on "ninja" => :build

@@ -5,6 +5,17 @@ class Qemu < Formula
   version "v9.1.2-macmulator"
   license "GPL-2.0-only"
 
+  bottle do
+    root_url "https://github.com/vale21/homebrew-mac-mulator/releases/download/v1.0.0"
+    rebuild 1
+    sha256 arm64_sequoia: "4dfde421619b2b4d288568f7c03457f244f0d45fc2a539d73963ccc0669b1b3d"
+    sha256 arm64_sonoma: "1ffe8f3a8009e804afbc63f0dccf37d7c8f58fc89f784514d0b2ea9aa3c2107f"
+    sha256 arm64_ventura: "23467a55dfd14fe168485d8a2674f79e9a44fd8f1df74c09f2c2606f7fc6d062"
+    sha256 sequoia: "d122ba31358ed0a44acb798ac3327d36296593c720f5532bf37f760284fa1d0c"
+    sha256 sonoma: "c82345d5cde67bac69952d5e2cbe121c19bbee85b4341b961ffe17b409776910"
+    sha256 ventura: "6cf8c905711e8a98e57914419583e6d6b50f42a2d464b4692b5728638ed4fdfe"
+  end
+
   depends_on "libtool" => :build
   depends_on "meson" => :build
   depends_on "ninja" => :build
