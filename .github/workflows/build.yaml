@@ -10,7 +10,7 @@ on:
     branches: ['main']
 
 jobs:
-  python-ci:
+  ruby-ci:
     runs-on: ubuntu-latest
 
     steps:
