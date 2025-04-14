@@ -1,55 +1,61 @@
+# frozen_string_literal: true
+
+# rubocop:disable Metrics/ClassLength
+# Formula to install qemu (MacMulator variant)
 class Qemu < Formula
-  desc "Emulator for x86 and PowerPC"
-  homepage "https://www.qemu.org/"
-  url "https://github.com/vale21/qemu.git", using: :git, revision: "v9.1.2-macmulator"
-  version "v9.1.2-macmulator"
-  license "GPL-2.0-only"
+  desc 'Emulator for x86 and PowerPC'
+  homepage 'https://www.qemu.org/'
+  url 'https://github.com/vale21/qemu.git', using: :git, revision: 'v9.1.2-macmulator'
+  version 'v9.1.2-macmulator'
+  license 'GPL-2.0-only'
 
   bottle do
-    root_url "https://github.com/vale21/homebrew-mac-mulator/releases/download/v1.0.0"
+    root_url 'https://github.com/vale21/homebrew-mac-mulator/releases/download/v1.0.0'
     rebuild 1
-    sha256 arm64_sequoia: "4dfde421619b2b4d288568f7c03457f244f0d45fc2a539d73963ccc0669b1b3d"
-    sha256 arm64_sonoma: "1ffe8f3a8009e804afbc63f0dccf37d7c8f58fc89f784514d0b2ea9aa3c2107f"
-    sha256 arm64_ventura: "23467a55dfd14fe168485d8a2674f79e9a44fd8f1df74c09f2c2606f7fc6d062"
-    sha256 sequoia: "d122ba31358ed0a44acb798ac3327d36296593c720f5532bf37f760284fa1d0c"
-    sha256 sonoma: "c82345d5cde67bac69952d5e2cbe121c19bbee85b4341b961ffe17b409776910"
-    sha256 ventura: "6cf8c905711e8a98e57914419583e6d6b50f42a2d464b4692b5728638ed4fdfe"
+    sha256 arm64_sequoia: '4dfde421619b2b4d288568f7c03457f244f0d45fc2a539d73963ccc0669b1b3d'
+    sha256 arm64_sonoma: '1ffe8f3a8009e804afbc63f0dccf37d7c8f58fc89f784514d0b2ea9aa3c2107f'
+    sha256 arm64_ventura: '23467a55dfd14fe168485d8a2674f79e9a44fd8f1df74c09f2c2606f7fc6d062'
+    sha256 sequoia: 'd122ba31358ed0a44acb798ac3327d36296593c720f5532bf37f760284fa1d0c'
+    sha256 sonoma: 'c82345d5cde67bac69952d5e2cbe121c19bbee85b4341b961ffe17b409776910'
+    sha256 ventura: '6cf8c905711e8a98e57914419583e6d6b50f42a2d464b4692b5728638ed4fdfe'
   end
 
-  depends_on "libtool" => :build
-  depends_on "meson" => :build
-  depends_on "ninja" => :build
-  depends_on "pkg-config" => :build
+  depends_on 'libtool' => :build
+  depends_on 'meson' => :build
+  depends_on 'ninja' => :build
+  depends_on 'pkg-config' => :build
 
-  depends_on "glib"
-  depends_on "gnutls"
-  depends_on "jpeg"
-  depends_on "vale21/mac-mulator/libangle"
-  depends_on "vale21/mac-mulator/libepoxy-angle"
-  depends_on "vale21/mac-mulator/virglrenderer"
-  depends_on "vale21/mac-mulator/spice-server"
-  depends_on "libpng"
-  depends_on "libssh"
-  depends_on "libusb"
-  depends_on "lzo"
-  depends_on "ncurses"
-  depends_on "nettle"
-  depends_on "pixman"
-  depends_on "snappy"
-  depends_on "spice-protocol"
-  depends_on "vde"
-  depends_on "python@3.13"
-  depends_on "curl"
-  depends_on "swtpm"
+  depends_on 'glib'
+  depends_on 'gnutls'
+  depends_on 'jpeg'
+  depends_on 'vale21/mac-mulator/libangle'
+  depends_on 'vale21/mac-mulator/libepoxy-angle'
+  depends_on 'vale21/mac-mulator/virglrenderer'
+  depends_on 'vale21/mac-mulator/spice-server'
+  depends_on 'libpng'
+  depends_on 'libssh'
+  depends_on 'libusb'
+  depends_on 'lzo'
+  depends_on 'ncurses'
+  depends_on 'nettle'
+  depends_on 'pixman'
+  depends_on 'snappy'
+  depends_on 'spice-protocol'
+  depends_on 'vde'
+  depends_on 'python@3.13'
+  depends_on 'curl'
+  depends_on 'swtpm'
 
   # 820KB floppy disk image file of FreeDOS 1.2, used to test QEMU
-  resource "test-image" do
-    url "https://github.com/vale21/homebrew-mac-mulator/raw/refs/heads/main/Resources/FD12FLOPPY.zip"
-    sha256 "81237c7b42dc0ffc8b32a2f5734e3480a3f9a470c50c14a9c4576a2561a35807"
+  resource 'test-image' do
+    url 'https://github.com/vale21/homebrew-mac-mulator/raw/refs/heads/main/Resources/FD12FLOPPY.zip'
+    sha256 '81237c7b42dc0ffc8b32a2f5734e3480a3f9a470c50c14a9c4576a2561a35807'
   end
 
+  # rubocop:disable Metrics/MethodLength
+  # rubocop:disable Metrics/AbcSize
   def install
-    ENV["LIBTOOL"] = "glibtool"
+    ENV['LIBTOOL'] = 'glibtool'
 
     args = %W[
       --prefix=#{prefix}
@@ -65,14 +71,14 @@ class Qemu < Formula
       --disable-sdl
       --disable-gtk
       --extra-cflags=-DNCURSES_WIDECHAR=1
-      --extra-cflags=-I#{Formula["libangle"].opt_prefix}/include
-      --extra-cflags=-I#{Formula["libepoxy-angle"].opt_prefix}/include
-      --extra-cflags=-I#{Formula["virglrenderer"].opt_prefix}/include
-      --extra-cflags=-I#{Formula["spice-protocol"].opt_prefix}/include/spice-1
-      --extra-ldflags=-L#{Formula["libangle"].opt_prefix}/lib
-      --extra-ldflags=-L#{Formula["libepoxy-angle"].opt_prefix}/lib
-      --extra-ldflags=-L#{Formula["virglrenderer"].opt_prefix}/lib
-      --extra-ldflags=-L#{Formula["spice-protocol"].opt_prefix}/lib
+      --extra-cflags=-I#{Formula['libangle'].opt_prefix}/include
+      --extra-cflags=-I#{Formula['libepoxy-angle'].opt_prefix}/include
+      --extra-cflags=-I#{Formula['virglrenderer'].opt_prefix}/include
+      --extra-cflags=-I#{Formula['spice-protocol'].opt_prefix}/include/spice-1
+      --extra-ldflags=-L#{Formula['libangle'].opt_prefix}/lib
+      --extra-ldflags=-L#{Formula['libepoxy-angle'].opt_prefix}/lib
+      --extra-ldflags=-L#{Formula['virglrenderer'].opt_prefix}/lib
+      --extra-ldflags=-L#{Formula['spice-protocol'].opt_prefix}/lib
     ]
 
     # Sharing Samba directories in QEMU requires the samba.org smbd which is
@@ -82,14 +88,17 @@ class Qemu < Formula
     # Samba installations from external taps.
     args << "--smbd=#{HOMEBREW_PREFIX}/sbin/samba-dot-org-smbd"
 
-    args << "--enable-cocoa" if OS.mac?
+    args << '--enable-cocoa' if OS.mac?
 
-    system "./configure", *args
-    system "make", "V=1", "install"
+    system './configure', *args
+    system 'make', 'V=1', 'install'
   end
+  # rubocop:enable Metrics/AbcSize
+  # rubocop:enable Metrics/MethodLength
 
+  # rubocop:disable Metrics/BlockLength
   test do
-    expected = "QEMU Project"
+    expected = 'QEMU Project'
     assert_match expected, shell_output("#{bin}/qemu-system-aarch64 --version")
     assert_match expected, shell_output("#{bin}/qemu-system-alpha --version")
     assert_match expected, shell_output("#{bin}/qemu-system-arm --version")
@@ -119,7 +128,9 @@ class Qemu < Formula
     assert_match expected, shell_output("#{bin}/qemu-system-x86_64 --version")
     assert_match expected, shell_output("#{bin}/qemu-system-xtensa --version")
     assert_match expected, shell_output("#{bin}/qemu-system-xtensaeb --version")
-    resource("test-image").stage testpath
-    assert_match "file format: raw", shell_output("#{bin}/qemu-img info FLOPPY.img")
+    resource('test-image').stage testpath
+    assert_match 'file format: raw', shell_output("#{bin}/qemu-img info FLOPPY.img")
   end
+  # rubocop:enable Metrics/BlockLength
 end
+# rubocop:enable Metrics/ClassLength
