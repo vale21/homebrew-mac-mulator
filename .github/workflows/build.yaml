@@ -43,7 +43,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
         uses: anothrNick/github-tag-action@master
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
           WITH_V: true
           BRANCH_HISTORY: 'last'
           MAJOR_STRING_TOKEN: 'feat!:'
