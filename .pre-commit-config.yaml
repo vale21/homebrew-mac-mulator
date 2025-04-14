@@ -17,4 +17,4 @@ repos:
     rev: v1.75.1
     hooks:
       - id: rubocop
-        args: ["-A"]
+        args: ["-A", "--except", "Naming/FileName"]
